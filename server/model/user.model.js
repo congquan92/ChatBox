@@ -31,4 +31,24 @@ async function findUserByEmail(email) {
     }
 }
 
-module.exports = { createUser, findUserByUsername, findUserByEmail };
+async function getProfile(userId) {
+    try {
+        const [rows] = await db.query("SELECT * FROM users WHERE id = ?", [userId]);
+        return rows[0];
+    } catch (error) {
+        console.error("Error getting user profile:", error);
+        throw error;
+    }
+}
+
+async function updateProfile(userId, { displayName, email, avatarUrl }) {
+    try {
+        const [result] = await db.query("UPDATE users SET displayName = ?, email = ?, avatarUrl = ? WHERE id = ?", [displayName, email, avatarUrl, userId]);
+        return result.affectedRows > 0;
+    } catch (error) {
+        console.error("Error updating user profile:", error);
+        throw error;
+    }
+}
+
+module.exports = { createUser, findUserByUsername, findUserByEmail, getProfile, updateProfile };

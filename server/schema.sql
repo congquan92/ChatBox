@@ -5,6 +5,6 @@ CREATE TABLE `users` (
 ',
 	`email` VARCHAR(255) NOT NULL,
 	`displayName` VARCHAR(255) NOT NULL,
-	`avartarUrl` VARCHAR(255),
+	`avatarUrl` VARCHAR(255),
 	PRIMARY KEY(`id`)
 );

@@ -8,13 +8,13 @@ const PORT = process.env.PORT;
 
 // import
 const authRoutes = require("./routes/auth.routes");
-
+const profileRoutes = require("./routes/profile.routes");
 // middlewares
 app.use(express.json());
 
 // routes
 app.use("/auth", authRoutes); // /login , /register
-
+app.use("/profile", profileRoutes);
 // 404 handler
 app.use((req, res, next) => {
     res.status(404).json({ message: "Route not found", status: 404 });
