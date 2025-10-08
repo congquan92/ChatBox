@@ -1,6 +1,9 @@
 const express = require("express");
-
+const http = require("http");
+const cros = require("cors");
 require("dotenv").config();
+const { Server } = require("socket.io");
+
 const app = express();
 
 const pool = require("./config/db");
@@ -11,6 +14,22 @@ const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
 // middlewares
 app.use(express.json());
+app.use(cros());
+
+// ---------------------test socket.io----------------------
+const server = http.createServer(app);
+// Tạo io với CORS (cho phép FE localhost:5173/3000)
+const io = new Server(server, {
+    cors: {
+        origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5500"],
+        methods: ["GET", "POST"],
+    },
+    pingTimeout: 20000, // tránh timeout sớm khi dev
+});
+io.on("connection", (socket) => {
+    console.log("a user connected:", socket.id);
+});
+// ---------------------end test socket.io----------------------
 
 // routes
 app.use("/auth", authRoutes); // /login , /register
