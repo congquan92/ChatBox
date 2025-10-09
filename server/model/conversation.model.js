@@ -47,16 +47,77 @@ async function getUserConversations(userId) {
                 c.createdAt,
                 cm.role,
                 cm.joinedAt,
-                (SELECT COUNT(*) FROM conversation_members WHERE conversationId = c.id) as memberCount,
-                (SELECT content FROM messages WHERE conversationId = c.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
-                (SELECT createdAt FROM messages WHERE conversationId = c.id ORDER BY createdAt DESC LIMIT 1) as lastMessageTime
+                (SELECT COUNT(*) FROM conversation_members WHERE conversationId = c.id) as memberCount
             FROM conversations c
             JOIN conversation_members cm ON c.id = cm.conversationId
             WHERE cm.userId = ?
-            ORDER BY lastMessageTime DESC, c.createdAt DESC
+            ORDER BY c.createdAt DESC
         `,
             [userId]
         );
+
+        // Lấy lastMessage và members cho mỗi conversation
+        for (const conversation of rows) {
+            // Lấy lastMessage với thông tin sender
+            const [lastMessageRows] = await db.query(
+                `
+                SELECT 
+                    m.id,
+                    m.content,
+                    m.contentType,
+                    m.createdAt,
+                    u.id as senderId,
+                    u.username as senderUsername,
+                    u.displayName as senderDisplayName,
+                    u.avatarUrl as senderAvatarUrl
+                FROM messages m
+                JOIN users u ON m.senderId = u.id
+                WHERE m.conversationId = ?
+                ORDER BY m.createdAt DESC
+                LIMIT 1
+            `,
+                [conversation.id]
+            );
+
+            if (lastMessageRows.length > 0) {
+                const lastMsg = lastMessageRows[0];
+                conversation.lastMessage = {
+                    id: lastMsg.id,
+                    content: lastMsg.content,
+                    messageType: lastMsg.contentType,
+                    createdAt: lastMsg.createdAt,
+                    sender: {
+                        id: lastMsg.senderId,
+                        username: lastMsg.senderUsername,
+                        displayName: lastMsg.senderDisplayName,
+                        avatarUrl: lastMsg.senderAvatarUrl,
+                    },
+                };
+                conversation.lastMessageTime = lastMsg.createdAt;
+            } else {
+                conversation.lastMessage = null;
+                conversation.lastMessageTime = null;
+            }
+
+            // Lấy members cho conversation
+            const [memberRows] = await db.query(
+                `
+                SELECT 
+                    u.id,
+                    u.username,
+                    u.displayName,
+                    u.avatarUrl,
+                    cm.role,
+                    cm.joinedAt
+                FROM conversation_members cm
+                JOIN users u ON cm.userId = u.id
+                WHERE cm.conversationId = ?
+            `,
+                [conversation.id]
+            );
+            conversation.members = memberRows;
+        }
+
         return rows;
     } catch (error) {
         console.error("Error getting user conversations:", error);

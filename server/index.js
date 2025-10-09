@@ -1,6 +1,6 @@
 const express = require("express");
 const http = require("http");
-
+const cors = require("cors");
 require("dotenv").config();
 const app = express();
 const server = http.createServer(app);
@@ -20,6 +20,24 @@ const messageRoutes = require("./routes/message.routes");
 
 // middlewares
 app.use(express.json());
+app.use(
+    cors({
+        origin: "http://localhost:5173",
+        credentials: true,
+    })
+);
+
+// Debug middleware
+app.use((req, res, next) => {
+    if (req.url.includes("/search/users")) {
+        console.log("=== EXPRESS DEBUG ===");
+        console.log("URL:", req.url);
+        console.log("Query:", req.query);
+        console.log("Raw query:", req.url.split("?")[1]);
+        console.log("====================");
+    }
+    next();
+});
 
 // Make io accessible to req object
 app.use((req, res, next) => {

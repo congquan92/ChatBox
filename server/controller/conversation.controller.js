@@ -14,6 +14,7 @@ function toPublicConversation(conversation) {
         lastMessage: conversation.lastMessage,
         lastMessageTime: conversation.lastMessageTime,
         userRole: conversation.role || conversation.userRole,
+        members: conversation.members || [],
     };
 }
 
@@ -206,11 +207,33 @@ async function updateConversation(req, res) {
 
 // Tìm kiếm user để thêm vào conversation
 async function searchUsers(req, res) {
+    console.log("=== CONTROLLER DEBUG ===");
+    console.log("req.url:", req.url);
+    console.log("req.query:", req.query);
+    console.log("req.query keys:", Object.keys(req.query));
+    console.log("req.params:", req.params);
+    console.log("========================");
+
     const { query } = req.query;
+    const { q } = req.query; // Thử cả hai cách
     const userId = req.user.id;
 
-    if (!query || query.trim().length < 2) {
-        return res.status(400).json({ message: "Query must be at least 2 characters long" });
+    console.log("Extracted query:", query);
+    console.log("Extracted q:", q);
+    console.log("Final search term:", query || q);
+
+    const searchTerm = query || q;
+
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        return res.status(400).json({
+            message: "Query must be at least 2 characters long",
+            debug: {
+                query: query,
+                q: q,
+                searchTerm: searchTerm,
+                length: searchTerm ? searchTerm.length : 0,
+            },
+        });
     }
 
     try {
@@ -222,7 +245,7 @@ async function searchUsers(req, res) {
             WHERE (username LIKE ? OR displayName LIKE ?) AND id != ?
             LIMIT 20
         `,
-            [`%${query}%`, `%${query}%`, userId]
+            [`%${searchTerm}%`, `%${searchTerm}%`, userId]
         );
 
         return res.status(200).json({

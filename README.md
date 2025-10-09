@@ -1,328 +1,249 @@
-# ChatBox API Documentation
+# ChatBox - Ứng dụng Chat Real-time
 
-Hệ thống chat real-time với REST API và Socket.IO
+Ứng dụng chat real-time được xây dựng với React, TypeScript, Socket.io và Node.js.
 
-## 🚀 Cài đặt và chạy
+## Tính năng
+
+-   ✅ Đăng ký/Đăng nhập tài khoản
+-   ✅ Chat real-time với Socket.io
+-   ✅ Tạo cuộc trò chuyện riêng tư và nhóm
+-   ✅ Hiển thị trạng thái online/offline
+-   ✅ Typing indicator (đang nhập...)
+-   ✅ Responsive design với Tailwind CSS
+-   ✅ Dark/Light mode support
+
+## Cấu trúc dự án
+
+```
+ChatBox/
+├── client/          # Frontend React + TypeScript
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── contexts/    # React contexts (Auth, Socket)
+│   │   ├── hooks/       # Custom hooks
+│   │   ├── api/         # API calls
+│   │   ├── lib/         # Utilities
+│   │   └── assets/      # Static assets
+│   └── public/
+└── server/          # Backend Node.js + Express
+    ├── controller/  # Controllers
+    ├── model/       # Database models
+    ├── routes/      # API routes
+    ├── socket/      # Socket.io handlers
+    ├── middleware/  # Middlewares
+    └── config/      # Database config
+```
+
+## Công nghệ sử dụng
+
+### Frontend
+
+-   **React 19** - UI Framework
+-   **TypeScript** - Type safety
+-   **Tailwind CSS** - Styling
+-   **Socket.io Client** - Real-time communication
+-   **React Router** - Navigation
+-   **Vite** - Build tool
+
+### Backend
+
+-   **Node.js** - Runtime
+-   **Express** - Web framework
+-   **Socket.io** - Real-time communication
+-   **MySQL** - Database
+-   **JWT** - Authentication
+-   **bcrypt** - Password hashing
+
+## Cài đặt và chạy
+
+### Yêu cầu
+
+-   Node.js 18+
+-   MySQL 8+
+-   npm hoặc yarn
+
+### 1. Clone repository
+
+```bash
+git clone <repository-url>
+cd ChatBox
+```
+
+### 2. Cài đặt dependencies
+
+#### Backend
 
 ```bash
 cd server
 npm install
-npm run dev
 ```
 
-## 🔧 Cấu hình (.env)
+#### Frontend
+
+```bash
+cd client
+npm install
+```
+
+### 3. Cấu hình Database
+
+1. Tạo database MySQL:
+
+```sql
+CREATE DATABASE chatbox;
+```
+
+2. Import schema:
+
+```bash
+cd server
+mysql -u username -p chatbox < schema.sql
+```
+
+3. Tạo file `.env` trong thư mục `server`:
 
 ```env
 PORT=3000
 DB_HOST=localhost
-DB_USER=root
+DB_USER=your_username
 DB_PASSWORD=your_password
 DB_NAME=chatbox
-JWT_SECRET=your_jwt_secret
+JWT_SECRET=your_jwt_secret_key
 JWT_EXPIRES_IN=7d
 NODE_ENV=development
 ```
 
-## 📊 Database Schema
+### 4. Cấu hình Frontend
 
-Schema đã có sẵn trong `schema.sql`:
+Tạo file `.env` trong thư mục `client` (đã có sẵn):
 
--   `users`: Thông tin người dùng
--   `conversations`: Cuộc trò chuyện (1-1 hoặc group)
--   `conversation_members`: Thành viên trong cuộc trò chuyện
--   `messages`: Tin nhắn
--   `message_receipts`: Trạng thái đã đọc tin nhắn
-
-## 🔐 Authentication
-
-Tất cả API yêu cầu xác thực (trừ register/login) cần header:
-
-```
-Authorization: Bearer <jwt_token>
+```env
+VITE_API_URL=http://localhost:3000
+VITE_SOCKET_URL=http://localhost:3000
 ```
 
-## 📡 REST API Endpoints
+### 5. Chạy ứng dụng
+
+#### Backend (Terminal 1)
+
+```bash
+cd server
+npm run dev
+```
+
+#### Frontend (Terminal 2)
+
+```bash
+cd client
+npm run dev
+```
+
+Ứng dụng sẽ chạy tại:
+
+-   Frontend: http://localhost:5173
+-   Backend API: http://localhost:3000
+
+## API Endpoints
 
 ### Authentication
 
 -   `POST /auth/register` - Đăng ký tài khoản
 -   `POST /auth/login` - Đăng nhập
 
-### Profile
-
--   `GET /profile/me` - Lấy thông tin profile
--   `PUT /profile/me` - Cập nhật profile
-
 ### Conversations
 
 -   `GET /conversations` - Lấy danh sách cuộc trò chuyện
 -   `POST /conversations` - Tạo cuộc trò chuyện mới
--   `GET /conversations/:id` - Lấy thông tin chi tiết cuộc trò chuyện
--   `PUT /conversations/:id` - Cập nhật thông tin cuộc trò chuyện
--   `POST /conversations/:id/members` - Thêm thành viên
--   `DELETE /conversations/:id/members/:memberId` - Xóa thành viên
--   `POST /conversations/:id/leave` - Rời cuộc trò chuyện
--   `GET /conversations/search/users` - Tìm kiếm user để thêm vào conversation
+-   `GET /conversations/:id` - Lấy chi tiết cuộc trò chuyện
+-   `GET /conversations/search/users` - Tìm kiếm user
 
 ### Messages
 
+-   `GET /messages/conversation/:id` - Lấy tin nhắn trong cuộc trò chuyện
 -   `POST /messages` - Gửi tin nhắn mới
--   `GET /messages/conversation/:conversationId` - Lấy tin nhắn trong cuộc trò chuyện
--   `GET /messages/:messageId` - Lấy chi tiết tin nhắn
--   `PUT /messages/:messageId` - Chỉnh sửa tin nhắn
--   `DELETE /messages/:messageId` - Xóa tin nhắn
--   `POST /messages/:messageId/read` - Đánh dấu tin nhắn đã đọc
--   `POST /messages/conversation/:conversationId/read-all` - Đánh dấu tất cả đã đọc
--   `GET /messages/conversation/:conversationId/unread-count` - Số tin nhắn chưa đọc
--   `GET /messages/conversation/:conversationId/search` - Tìm kiếm tin nhắn
+-   `PUT /messages/:id` - Chỉnh sửa tin nhắn
+-   `DELETE /messages/:id` - Xóa tin nhắn
 
-### Health Check
+## Socket Events
 
--   `GET /health` - Kiểm tra trạng thái server
+### Client gửi
 
-## 🔌 Socket.IO Events
-
-### Connection
-
-Kết nối với JWT authentication:
-
-```javascript
-const socket = io("http://localhost:3000", {
-    auth: {
-        token: "your_jwt_token",
-    },
-});
-```
-
-### Events Client → Server
-
-#### Conversation Management
-
--   `join_conversation` - Tham gia room conversation
-
-    ```javascript
-    socket.emit("join_conversation", { conversationId: 1 });
-    ```
-
--   `leave_conversation` - Rời room conversation
-
-    ```javascript
-    socket.emit("leave_conversation", { conversationId: 1 });
-    ```
-
--   `create_conversation` - Tạo conversation mới
-    ```javascript
-    socket.emit("create_conversation", {
-        type: "group",
-        title: "Group Name",
-        memberIds: [2, 3, 4],
-        label: "Team",
-    });
-    ```
-
-#### Messaging
-
+-   `join_conversation` - Join vào conversation room
+-   `leave_conversation` - Rời khỏi conversation room
 -   `send_message` - Gửi tin nhắn
-
-    ```javascript
-    socket.emit("send_message", {
-        conversationId: 1,
-        content: "Hello!",
-        contentType: "text",
-    });
-    ```
-
--   `mark_message_read` - Đánh dấu đã đọc
-    ```javascript
-    socket.emit("mark_message_read", { messageId: 123 });
-    ```
-
-#### Typing Indicators
-
--   `typing_start` - Bắt đầu typing
-
-    ```javascript
-    socket.emit("typing_start", { conversationId: 1 });
-    ```
-
--   `typing_stop` - Dừng typing
-    ```javascript
-    socket.emit("typing_stop", { conversationId: 1 });
-    ```
-
-#### Online Status
-
+-   `typing_start` - Bắt đầu nhập
+-   `typing_stop` - Dừng nhập
 -   `get_online_users` - Lấy danh sách user online
-    ```javascript
-    socket.emit("get_online_users");
-    ```
 
-### Events Server → Client
-
-#### Connection Status
-
--   `user_online` - User đăng nhập
--   `user_offline` - User đăng xuất
--   `online_users` - Danh sách user online
-
-#### Conversation Events
-
--   `joined_conversation` - Đã tham gia conversation
--   `left_conversation` - Đã rời conversation
--   `new_conversation` - Có conversation mới
--   `member_joined` - Có thành viên mới
--   `member_left` - Thành viên rời đi
-
-#### Message Events
+### Server gửi
 
 -   `new_message` - Tin nhắn mới
--   `message_read` - Tin nhắn đã được đọc
+-   `user_typing` - User đang nhập
+-   `user_stop_typing` - User dừng nhập
+-   `user_online` - User online
+-   `user_offline` - User offline
+-   `online_users` - Danh sách user online
 
-#### Typing Events
+## Cấu trúc Components
 
--   `user_typing` - User đang typing
--   `user_stop_typing` - User ngừng typing
+### Authentication
 
-#### Error Events
+-   `Login` - Form đăng nhập
+-   `Register` - Form đăng ký
 
--   `error` - Lỗi xảy ra
+### Chat
 
-## 📝 Ví dụ sử dụng
+-   `ChatInterface` - Layout chính của chat
+-   `ConversationList` - Danh sách cuộc trò chuyện
+-   `ChatWindow` - Cửa sổ chat chính
+-   `MessageBubble` - Bubble tin nhắn
+-   `NewConversationModal` - Modal tạo cuộc trò chuyện mới
+-   `OnlineUsers` - Hiển thị user online
 
-### 1. Đăng ký và đăng nhập
+### Contexts
 
-```javascript
-// Đăng ký
-const registerData = {
-    username: "john_doe",
-    password: "password123",
-    email: "john@example.com",
-    displayName: "John Doe",
-};
+-   `AuthContext` - Quản lý authentication state
+-   `SocketContext` - Quản lý socket connection
 
-fetch("/auth/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(registerData),
-});
+## Tính năng nâng cao có thể thêm
 
-// Đăng nhập
-const loginData = {
-    username: "john_doe",
-    password: "password123",
-};
+-   [ ] Upload file/hình ảnh
+-   [ ] Emoji picker
+-   [ ] Message reactions
+-   [ ] Push notifications
+-   [ ] Voice/Video call
+-   [ ] Message search
+-   [ ] Message threading
+-   [ ] User presence (away, busy, etc.)
+-   [ ] Message encryption
 
-const response = await fetch("/auth/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(loginData),
-});
+## Troubleshooting
 
-const { token } = await response.json();
-```
+### Lỗi kết nối database
 
-### 2. Tạo conversation và gửi tin nhắn
+1. Kiểm tra MySQL service đang chạy
+2. Kiểm tra thông tin kết nối trong `.env`
+3. Đảm bảo database đã được tạo
 
-```javascript
-// Tạo conversation mới
-const conversationData = {
-    type: "group",
-    title: "Team Meeting",
-    memberIds: [2, 3, 4],
-    label: "Work",
-};
+### Lỗi CORS
 
-const response = await fetch("/conversations", {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(conversationData),
-});
+1. Kiểm tra cấu hình CORS trong `server/index.js`
+2. Đảm bảo URL frontend đúng
 
-const {
-    data: { conversationId },
-} = await response.json();
+### Socket không kết nối
 
-// Join conversation qua socket
-socket.emit("join_conversation", { conversationId });
+1. Kiểm tra `VITE_SOCKET_URL` trong client `.env`
+2. Kiểm tra backend server đang chạy
+3. Kiểm tra firewall/antivirus
 
-// Gửi tin nhắn
-socket.emit("send_message", {
-    conversationId,
-    content: "Hello everyone!",
-    contentType: "text",
-});
-```
+## Đóng góp
 
-### 3. Lắng nghe tin nhắn mới
+1. Fork project
+2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Tạo Pull Request
 
-```javascript
-socket.on("new_message", (message) => {
-    console.log("New message:", message);
-    // {
-    //   id: 123,
-    //   conversationId: 1,
-    //   senderId: 2,
-    //   content: 'Hello!',
-    //   contentType: 'text',
-    //   createdAt: '2024-01-01T12:00:00.000Z',
-    //   sender: {
-    //     username: 'john_doe',
-    //     displayName: 'John Doe'
-    //   }
-    // }
-});
-```
+## License
 
-## 🎯 Tính năng chính
-
-✅ **Authentication & Authorization**
-
--   JWT-based authentication
--   Middleware bảo vệ routes
-
-✅ **Real-time Communication**
-
--   Socket.IO cho real-time messaging
--   Online/offline status
--   Typing indicators
-
-✅ **Conversation Management**
-
--   Direct (1-1) và Group chat
--   Thêm/xóa members
--   Admin permissions
-
-✅ **Message Features**
-
--   Gửi/nhận tin nhắn
--   Chỉnh sửa/xóa tin nhắn
--   Read receipts
--   Tìm kiếm tin nhắn
-
-✅ **User Experience**
-
--   Profile management
--   User search
--   Unread message counts
-
-## 🔒 Security Features
-
--   JWT token authentication
--   Socket.IO authentication middleware
--   SQL injection protection (parameterized queries)
--   Password hashing với bcrypt
--   Input validation
--   Error handling
-
-## 🛠️ Technology Stack
-
--   **Backend**: Node.js, Express.js
--   **Database**: MySQL
--   **Real-time**: Socket.IO
--   **Authentication**: JWT
--   **Password Hashing**: bcryptjs
-
-Hệ thống đã sẵn sàng cho việc phát triển client-side và triển khai production!
+Distributed under the MIT License. See `LICENSE` for more information.

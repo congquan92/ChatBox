@@ -70,7 +70,11 @@ async function getMessages(req, res) {
 
         return res.status(200).json({
             message: "Messages retrieved successfully",
-            data: messages.map(toPublicMessage),
+            data: {
+                messages: messages.map(toPublicMessage),
+                hasMore: messages.length === parseInt(limit),
+                total: messages.length,
+            },
         });
     } catch (error) {
         console.error("Error getting messages:", error);

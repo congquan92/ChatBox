@@ -7,6 +7,21 @@ const { authenticateToken } = require("../middleware/auth.middleware");
 // Lấy danh sách conversation của user
 router.get("/", authenticateToken, conversationController.getUserConversations);
 
+// Tìm kiếm user để thêm vào conversation (phải đặt trước /:conversationId)
+router.get(
+    "/search/users",
+    authenticateToken,
+    (req, res, next) => {
+        console.log("=== ROUTE DEBUG ===");
+        console.log("Request URL:", req.url);
+        console.log("Request query:", req.query);
+        console.log("Request params:", req.params);
+        console.log("===================");
+        next();
+    },
+    conversationController.searchUsers
+);
+
 // Tạo conversation mới
 router.post("/", authenticateToken, conversationController.createConversation);
 
@@ -24,8 +39,5 @@ router.delete("/:conversationId/members/:memberId", authenticateToken, conversat
 
 // Rời khỏi conversation
 router.post("/:conversationId/leave", authenticateToken, conversationController.leaveConversation);
-
-// Tìm kiếm user để thêm vào conversation
-router.get("/search/users", authenticateToken, conversationController.searchUsers);
 
 module.exports = router;
