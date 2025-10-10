@@ -4,8 +4,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, GuestOnly } from "@/router/guards";
 import { LoginForm } from "@/components/auth/login-form";
 import NotFound from "@/components/page/404";
+import Navbar from "@/components/page/navbar";
+import Footer from "@/components/page/footer";
 
-// Component để xử lý redirect thông minh
 function SmartRedirect() {
     const hasToken = !!localStorage.getItem("token");
     return hasToken ? <Navigate to="/404" replace /> : <Navigate to="/login" replace />;
@@ -14,6 +15,7 @@ function SmartRedirect() {
 function App() {
     return (
         <AuthProvider>
+            <Navbar />
             <Routes>
                 {/* KHÁCH: chỉ hiển thị khi CHƯA login */}
                 <Route element={<GuestOnly />}>
@@ -27,6 +29,7 @@ function App() {
                 {/* Catch-all routes */}
                 <Route path="*" element={<SmartRedirect />} />
             </Routes>
+            <Footer />
         </AuthProvider>
     );
 }
