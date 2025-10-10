@@ -1,4 +1,5 @@
 const express = require("express");
+const cors = require("cors");
 
 require("dotenv").config();
 const app = express();
@@ -9,8 +10,15 @@ const PORT = process.env.PORT;
 // import
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
+
 // middlewares
 app.use(express.json());
+app.use(
+    cors({
+        origin: "http://localhost:5173", //  domain của FE
+        credentials: true,
+    })
+);
 
 // routes
 app.use("/auth", authRoutes); // /login , /register
