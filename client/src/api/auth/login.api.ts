@@ -11,10 +11,11 @@ export async function login(username: string, password: string, msg: React.Dispa
         if (!response.ok) {
             msg(data.message);
             console.error("Yeu cầu không thành công:", data.message);
-            return;
+            return { ok: false };
         }
         msg(data.message);
         localStorage.setItem("token", data.token);
+        return { ok: true };
     } catch (error) {
         console.error("Lỗi server", error);
         msg("Lỗi server");

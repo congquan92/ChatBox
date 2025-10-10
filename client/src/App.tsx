@@ -1,20 +1,33 @@
-import { login } from "@/api/auth/login.api";
 import Home from "@/components/page/home";
-import { Route, Routes } from "react-router-dom";
+import { AuthProvider } from "@/context/AuthContext";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { RequireAuth, GuestOnly } from "@/router/guards";
+import { LoginForm } from "@/components/auth/login-form";
+import NotFound from "@/components/page/404";
+
+// Component để xử lý redirect thông minh
+function SmartRedirect() {
+    const hasToken = !!localStorage.getItem("token");
+    return hasToken ? <Navigate to="/404" replace /> : <Navigate to="/login" replace />;
+}
 
 function App() {
-    const u = "alex1";
-    const p = "123";
-    const handleLogin = async () => {
-        const data = await login(u, p);
-        console.log(data);
-    };
     return (
-        <>
+        <AuthProvider>
             <Routes>
-                <Route path="/" element={<Home />} />
+                {/* KHÁCH: chỉ hiển thị khi CHƯA login */}
+                <Route element={<GuestOnly />}>
+                    <Route path="/login" element={<LoginForm />} />
+                </Route>
+                {/* ĐÃ LOGIN: phải có token mới vào được */}
+                <Route element={<RequireAuth />}>
+                    <Route path="/home" element={<Home />} />
+                    <Route path="/404" element={<NotFound />} />
+                </Route>
+                {/* Catch-all routes */}
+                <Route path="*" element={<SmartRedirect />} />
             </Routes>
-        </>
+        </AuthProvider>
     );
 }
 

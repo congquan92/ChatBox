@@ -5,17 +5,22 @@ import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from 
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-
+import { useNavigate } from "react-router-dom";
 export function LoginForm() {
     const [userName, setUserName] = useState("");
     const [password, setPassword] = useState("");
     const [msg, setMsg] = useState("");
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
-    const handleSubmit = (e: FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         setLoading(true);
         setMsg("");
         e.preventDefault();
-        login(userName, password, setMsg, setLoading);
+        const result = await login(userName, password, setMsg, setLoading);
+        if (result && result.ok) {
+            // ĐÃ login => vào /ok
+            navigate("/home", { replace: true });
+        }
     };
     return (
         <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
@@ -30,8 +35,8 @@ export function LoginForm() {
                             </div>
                             {msg && <p className="text-sm text-red-600">{msg}</p>}
                             <Field>
-                                <FieldLabel htmlFor="text">User Name</FieldLabel>
-                                <Input id="text" type="text" placeholder="Enter your username" required value={userName} onChange={(e) => setUserName(e.target.value)} />
+                                <FieldLabel htmlFor="username">User Name</FieldLabel>
+                                <Input id="username" type="text" placeholder="Enter your username" required value={userName} onChange={(e) => setUserName(e.target.value)} autoComplete="username" />
                             </Field>
 
                             <Field>
@@ -41,7 +46,7 @@ export function LoginForm() {
                                         Forgot your password?
                                     </a>
                                 </div>
-                                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="**********" />
                             </Field>
 
                             <Field>
