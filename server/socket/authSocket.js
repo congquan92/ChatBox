@@ -35,7 +35,7 @@ function socketAuth(socket, next) {
                 return next(new Error("Forbidden access - Không có quyền truy cập"));
             }
             // gán user để các handler sau dùng
-            socket.user = user; // { id, username, email, iat, exp, ... }
+            socket.user = user; // { id, username, email, iat, exp, ... }  được jwt giải ra
             return next();
         });
     } catch (e) {
