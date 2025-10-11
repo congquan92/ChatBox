@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 
 interface User {
     userName: string;
@@ -14,6 +15,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchdata = async () => {
@@ -29,7 +31,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (!res.ok) {
                     localStorage.removeItem("token");
                     setUser(null);
-                    console.log("Mã Token đã hết hạn hoặc không hợp lệ");
+                    // console.log("Mã Token đã hết hạn hoặc không hợp lệ");
+                    console.log(data.message);
+                    navigate("/", { replace: true });
                     return;
                 }
                 setUser(data.data);
