@@ -45,6 +45,60 @@ function initializeSocket(server) {
 
         // === CONVERSATION EVENTS ===
 
+        // Tạo conversation mới
+        socket.on("create_conversation", async (data) => {
+            try {
+                const { type, title, memberIds, avatarUrl, coverGifUrl, label } = data;
+
+                const result = await conversationModel.createConversation({
+                    type,
+                    title,
+                    avatarUrl,
+                    coverGifUrl,
+                    label,
+                    creatorId: user.id,
+                    memberIds,
+                });
+
+                // Join tất cả members vào room mới
+                const allMemberIds = [user.id, ...memberIds];
+                allMemberIds.forEach((memberId) => {
+                    const memberSocket = onlineUsers.get(memberId);
+                    if (memberSocket) {
+                        io.to(memberSocket.socketId).join(`conversation_${result.id}`);
+                        io.to(memberSocket.socketId).emit("conversation_created", {
+                            conversation: result,
+                            creator: {
+                                id: user.id,
+                                username: user.username,
+                                displayName: user.displayName,
+                                avatarUrl: user.avatarUrl,
+                            },
+                        });
+                    }
+                });
+
+                console.log(`Conversation ${result.id} created by ${user.username}`);
+            } catch (error) {
+                console.error("Error creating conversation:", error);
+                socket.emit("error", { message: "Failed to create conversation" });
+            }
+        });
+
+        // Join conversation room
+        socket.on("join_conversation", (data) => {
+            const { conversationId } = data;
+            socket.join(`conversation_${conversationId}`);
+            console.log(`User ${user.username} joined conversation ${conversationId}`);
+        });
+
+        // Leave conversation room
+        socket.on("leave_conversation", (data) => {
+            const { conversationId } = data;
+            socket.leave(`conversation_${conversationId}`);
+            console.log(`User ${user.username} left conversation ${conversationId}`);
+        });
+
         // === MESSAGE EVENTS ===
 
         // Gửi tin nhắn
@@ -92,6 +146,67 @@ function initializeSocket(server) {
             }
         });
 
+        // Chỉnh sửa tin nhắn
+        socket.on("edit_message", async (data) => {
+            try {
+                const { messageId, content } = data;
+
+                const result = await messageModel.editMessage(messageId, user.id, content);
+
+                if (result) {
+                    const message = await messageModel.getMessageById(messageId, user.id);
+                    if (message) {
+                        // Broadcast tin nhắn đã chỉnh sửa
+                        io.to(`conversation_${message.conversationId}`).emit("message_edited", {
+                            messageId,
+                            content,
+                            editedAt: new Date(),
+                            editedBy: {
+                                id: user.id,
+                                username: user.username,
+                                displayName: user.displayName,
+                                avatarUrl: user.avatarUrl,
+                            },
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Error editing message:", error);
+                socket.emit("error", { message: "Failed to edit message" });
+            }
+        });
+
+        // Xóa tin nhắn
+        socket.on("delete_message", async (data) => {
+            try {
+                const { messageId } = data;
+
+                // Lấy thông tin message trước khi xóa
+                const message = await messageModel.getMessageById(messageId, user.id);
+
+                if (message) {
+                    const result = await messageModel.deleteMessage(messageId, user.id);
+
+                    if (result) {
+                        // Broadcast tin nhắn đã xóa
+                        io.to(`conversation_${message.conversationId}`).emit("message_deleted", {
+                            messageId,
+                            deletedBy: {
+                                id: user.id,
+                                username: user.username,
+                                displayName: user.displayName,
+                                avatarUrl: user.avatarUrl,
+                            },
+                            deletedAt: new Date(),
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error("Error deleting message:", error);
+                socket.emit("error", { message: "Failed to delete message" });
+            }
+        });
+
         // Đánh dấu tin nhắn đã đọc
         socket.on("mark_message_read", async (data) => {
             try {
@@ -120,6 +235,28 @@ function initializeSocket(server) {
                 console.error("Error marking message as read:", error);
                 socket.emit("error", { message: "Failed to mark message as read" });
             }
+        });
+
+        // Người dùng đang gõ
+        socket.on("typing_start", (data) => {
+            const { conversationId } = data;
+            socket.to(`conversation_${conversationId}`).emit("user_typing", {
+                userId: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                conversationId,
+            });
+        });
+
+        // Người dùng ngừng gõ
+        socket.on("typing_stop", (data) => {
+            const { conversationId } = data;
+            socket.to(`conversation_${conversationId}`).emit("user_stop_typing", {
+                userId: user.id,
+                username: user.username,
+                displayName: user.displayName,
+                conversationId,
+            });
         });
 
         // === ONLINE STATUS ===
@@ -166,3 +303,5 @@ async function joinUserConversations(socket, userId) {
         console.error("Error joining user conversations:", error);
     }
 }
+
+module.exports = { initializeSocket };

@@ -1,8 +1,11 @@
 const express = require("express");
 const cors = require("cors");
+const http = require("http");
+const { initializeSocket } = require("./socket/chatSocket");
 
 require("dotenv").config();
 const app = express();
+const server = http.createServer(app);
 
 const pool = require("./config/db");
 const PORT = process.env.PORT;
@@ -10,6 +13,10 @@ const PORT = process.env.PORT;
 // import
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
+const conversationRoutes = require("./routes/conversation.routes");
+const messageRoutes = require("./routes/message.routes");
+const receiptRoutes = require("./routes/receipt.routes");
+const { errorHandler, notFound } = require("./middleware/errorHandler");
 
 // middlewares
 app.use(express.json());
@@ -23,16 +30,23 @@ app.use(
 // routes
 app.use("/auth", authRoutes); // /login , /register
 app.use("/profile", profileRoutes);
-// 404 handler
-app.use((req, res, next) => {
-    res.status(404).json({ message: "Route not found", status: 404 });
-});
+app.use("/conversations", conversationRoutes);
+app.use("/messages", messageRoutes);
+app.use("/receipts", receiptRoutes);
+
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
 // start server
 pool.getConnection()
     .then((connection) => {
         console.log("Connected to MySQL database");
-        app.listen(PORT, () => {
+
+        // Initialize Socket.io
+        const io = initializeSocket(server);
+
+        server.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
     })

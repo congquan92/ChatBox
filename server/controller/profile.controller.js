@@ -47,4 +47,62 @@ async function updateProfile(req, res) {
     }
 }
 
-module.exports = { getProfile, updateProfile };
+// Tìm kiếm user
+async function searchUsers(req, res) {
+    try {
+        const { q, limit = 20 } = req.query;
+        const currentUserId = req.user.id;
+
+        if (!q || q.trim().length < 2) {
+            return res.status(400).json({ message: "Search query must be at least 2 characters" });
+        }
+
+        const users = await userModel.searchUsers(q.trim(), currentUserId, parseInt(limit));
+        return res.status(200).json({
+            message: "Users found successfully",
+            data: users.map(toPublicProfile),
+        });
+    } catch (error) {
+        console.error("Error searching users:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+}
+
+// Lấy danh sách tất cả user
+async function getAllUsers(req, res) {
+    try {
+        const { limit = 50 } = req.query;
+        const currentUserId = req.user.id;
+
+        const users = await userModel.getAllUsers(currentUserId, parseInt(limit));
+        return res.status(200).json({
+            message: "All users retrieved successfully",
+            data: users.map(toPublicProfile),
+        });
+    } catch (error) {
+        console.error("Error getting all users:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+}
+
+// Lấy thông tin user theo ID
+async function getUserById(req, res) {
+    try {
+        const { userId } = req.params;
+        const user = await userModel.getUserById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        return res.status(200).json({
+            message: "User found successfully",
+            data: toPublicProfile(user),
+        });
+    } catch (error) {
+        console.error("Error getting user by id:", error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+}
+
+module.exports = { getProfile, updateProfile, searchUsers, getAllUsers, getUserById };
