@@ -33,7 +33,7 @@ function initializeSocket(server) {
         userSockets.set(socket.id, user.id);
 
         // Join user vào các conversation rooms
-        joinUserConversations(socket, user.id);
+        joinUserConversations(socket, user.id, user);
 
         // Thông báo user online cho tất cả bạn bè
         socket.broadcast.emit("user_online", {
@@ -264,6 +264,7 @@ function initializeSocket(server) {
         // Lấy danh sách user online
         socket.on("get_online_users", () => {
             const onlineUserList = Array.from(onlineUsers.values()).map((item) => item.user);
+            console.log(` user yêu cầu danh sách online : ${user.username}:`, onlineUserList);
             socket.emit("online_users", onlineUserList);
         });
 
@@ -292,13 +293,13 @@ function initializeSocket(server) {
 }
 
 // Helper function để join user vào tất cả conversation rooms
-async function joinUserConversations(socket, userId) {
+async function joinUserConversations(socket, userId, user) {
     try {
         const conversations = await conversationModel.getUserConversations(userId);
         conversations.forEach((conversation) => {
             socket.join(`conversation_${conversation.id}`);
         });
-        console.log(`User ${userId} joined ${conversations.length} conversation rooms`);
+        console.log(`user ${user.username}(${user.id}) joined ${conversations.length} conversation rooms`);
     } catch (error) {
         console.error("Error joining user conversations:", error);
     }

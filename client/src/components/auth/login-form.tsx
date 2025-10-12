@@ -12,14 +12,15 @@ export function LoginForm() {
     const [msg, setMsg] = useState("");
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
+
     const handleSubmit = async (e: FormEvent) => {
         setLoading(true);
         setMsg("");
         e.preventDefault();
         const result = await login(userName, password, setMsg, setLoading);
         if (result && result.ok) {
-            // ĐÃ login => vào /ok
-            navigate("/home", { replace: true });
+            // navigate("/home", { replace: true });
+            window.location.href = "/home";
         }
     };
     return (

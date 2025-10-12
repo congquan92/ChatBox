@@ -34,7 +34,7 @@ async function loginUser(req, res) {
         if (!match) {
             return res.status(404).json({ message: "Username or password wrong" });
         }
-        const token = jwt.sign({ id: checkUser.id, username: checkUser.username, displayName: checkUser.displayName }, process.env.JWT_SECRET, { expiresIn: `${process.env.JWT_EXPIRES_IN}`, algorithm: "HS256" });
+        const token = jwt.sign({ id: checkUser.id, username: checkUser.username, displayName: checkUser.displayName, avatarUrl: checkUser.avatarUrl }, process.env.JWT_SECRET, { expiresIn: `${process.env.JWT_EXPIRES_IN}`, algorithm: "HS256" });
 
         return res.status(200).json({ message: "Login successful", token });
     } catch (error) {

@@ -20,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const fetchdata = async () => {
+        const fetchMe = async () => {
             try {
                 const res = await fetch(`${import.meta.env.VITE_API_URL}/profile/me`, {
                     method: "GET",
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 console.log(error);
             }
         };
-        fetchdata();
+        fetchMe();
     }, []);
 
     const logout = () => {
