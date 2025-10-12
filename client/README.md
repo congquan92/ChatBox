@@ -1,73 +1,169 @@
-# React + TypeScript + Vite
+# ChatBox Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Giao diện người dùng cho ứng dụng ChatBox được xây dựng với React + TypeScript + Vite + shadcn/ui.
 
-Currently, two official plugins are available:
+## Tính năng
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 🔐 Xác thực
 
-## React Compiler
+-   Đăng nhập với username/password
+-   Đăng ký tài khoản mới
+-   Quản lý session với JWT token
+-   Auto-redirect dựa trên trạng thái đăng nhập
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 💬 Chat Real-time
 
-## Expanding the ESLint configuration
+-   Chat trực tiếp (1-1) và nhóm
+-   Gửi/nhận tin nhắn real-time với Socket.io
+-   Hiển thị trạng thái online/offline
+-   Typing indicators
+-   Message read receipts
+-   Tìm kiếm cuộc hội thoại
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 👥 Quản lý người dùng
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+-   Tìm kiếm người dùng
+-   Tạo cuộc hội thoại mới
+-   Thêm/xóa thành viên khỏi nhóm
+-   Xem profile người dùng
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### 🎨 Giao diện
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+-   Responsive design
+-   Dark/Light mode support (shadcn/ui)
+-   Modern UI với Tailwind CSS
+-   Accessible components
+
+## Cấu trúc thư mục
+
+```
+client/
+├── src/
+│   ├── api/              # API services
+│   │   ├── auth/         # Authentication APIs
+│   │   ├── conversation.api.ts
+│   │   ├── message.api.ts
+│   │   ├── profile.api.ts
+│   │   └── socket.ts     # Socket.io service
+│   ├── components/       # React components
+│   │   ├── auth/         # Login/Register forms
+│   │   ├── chat/         # Chat interface
+│   │   ├── page/         # Page layouts
+│   │   └── ui/           # shadcn/ui components
+│   ├── context/          # React contexts
+│   │   ├── AuthContext.tsx
+│   │   └── ChatContextSimple.tsx
+│   ├── hook/             # Custom hooks
+│   │   ├── useAuth.ts
+│   │   └── useChat.ts
+│   ├── router/           # Route guards
+│   └── lib/              # Utilities
+└── ...config files
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Cài đặt và chạy
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+1. **Cài đặt dependencies:**
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+    ```bash
+    npm install
+    ```
+
+2. **Cấu hình environment:**
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Chỉnh sửa `.env`:
+
+    ```
+    VITE_API_URL=http://localhost:3000
+    ```
+
+3. **Chạy development server:**
+
+    ```bash
+    npm run dev
+    ```
+
+4. **Build cho production:**
+    ```bash
+    npm run build
+    ```
+
+## API Integration
+
+Client tương tác với server qua REST API và Socket.io:
+
+### REST APIs
+
+-   `POST /auth/login` - Đăng nhập
+-   `POST /auth/register` - Đăng ký
+-   `GET /profile/me` - Lấy thông tin user hiện tại
+-   `GET /conversations` - Lấy danh sách hội thoại
+-   `POST /conversations` - Tạo hội thoại mới
+-   `GET /messages/conversation/:id` - Lấy tin nhắn
+-   `POST /messages` - Gửi tin nhắn
+-   `GET /profile/search` - Tìm kiếm user
+
+### Socket.io Events
+
+-   **Client → Server:**
+    -   `send_message` - Gửi tin nhắn
+    -   `join_conversation` - Tham gia room
+    -   `typing_start/stop` - Bắt đầu/dừng typing
+-   **Server → Client:**
+    -   `new_message` - Tin nhắn mới
+    -   `user_typing` - User đang typing
+    -   `user_online/offline` - Trạng thái online
+
+## Technologies
+
+-   **React 19** - UI framework
+-   **TypeScript** - Type safety
+-   **Vite** - Build tool
+-   **Tailwind CSS** - Styling
+-   **shadcn/ui** - UI component library
+-   **React Router** - Routing
+-   **Socket.io Client** - Real-time communication
+
+## Deployment
+
+1. Build project:
+
+    ```bash
+    npm run build
+    ```
+
+2. Serve static files từ thư mục `dist/`
+
+3. Cấu hình server để serve `index.html` cho tất cả routes (SPA)
+
+## Environment Variables
+
+| Variable           | Description     | Default                 |
+| ------------------ | --------------- | ----------------------- |
+| `VITE_API_URL`     | Backend API URL | `http://localhost:3000` |
+| `VITE_APP_NAME`    | App name        | `ChatBox`               |
+| `VITE_APP_VERSION` | App version     | `1.0.0`                 |
+
+## Troubleshooting
+
+### Connection Issues
+
+-   Kiểm tra `VITE_API_URL` trong `.env`
+-   Đảm bảo server đang chạy
+-   Kiểm tra CORS configuration trên server
+
+### Authentication Issues
+
+-   Xóa token cũ: `localStorage.clear()`
+-   Kiểm tra JWT token format
+-   Verify server authentication endpoints
+
+### Socket Issues
+
+-   Kiểm tra Socket.io server configuration
+-   Monitor browser network tab cho WebSocket connections
+-   Check console for connection errors

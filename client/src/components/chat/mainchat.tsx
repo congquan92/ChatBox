@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hook/useAuth";
 
@@ -8,110 +8,142 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Search, Send, MoreVertical } from "lucide-react";
+import { Plus, Search, Send, MoreVertical, Loader2 } from "lucide-react";
 
-type Chat = {
-    id: number;
-    name: string;
-    lastMessage: string;
-    avatar?: string;
-    unread: number;
-    participants?: string[];
-    messages: { id: string; from: "me" | "them"; text: string; time: string }[];
-};
+// API imports
+import { type Conversation, getConversations, createConversation } from "@/api/conversation.api";
+import { type Message, getMessages, sendMessage as apiSendMessage } from "@/api/message.api";
+import { searchUsers, type User } from "@/api/profile.api";
 
 export default function Mainchat() {
     const { logout } = useAuth();
     const navigate = useNavigate();
 
-    const [chats, setChats] = useState<Chat[]>([
-        {
-            id: 1,
-            name: "Nguyễn Quân",
-            lastMessage: "Ê mai đi học không?",
-            avatar: "",
-            unread: 2,
-            participants: ["you", "Nguyễn Quân"],
-            messages: [
-                { id: "m1", from: "them", text: "Hello bro 👋", time: "09:01" },
-                { id: "m2", from: "me", text: "Ờ chào, test chat nè 💬", time: "09:02" },
-                { id: "m3", from: "them", text: "Ê mai đi học không?", time: "09:05" },
-            ],
-        },
-        {
-            id: 2,
-            name: "ShopZues Team",
-            lastMessage: "Cập nhật tính năng mới rồi nha!",
-            avatar: "",
-            unread: 0,
-            participants: ["you", "Dev1", "Dev2"],
-            messages: [{ id: "m4", from: "them", text: "Cập nhật tính năng mới rồi nha!", time: "08:10" }],
-        },
-        {
-            id: 3,
-            name: "Hacker Nặc Danh",
-            lastMessage: "Gửi public key đi bro...",
-            avatar: "",
-            unread: 5,
-            participants: ["you", "???"],
-            messages: [{ id: "m5", from: "them", text: "Gửi public key đi bro...", time: "00:00" }],
-        },
-    ]);
-
-    const [selectedChatId, setSelectedChatId] = useState<number | null>(1);
+    // State
+    const [conversations, setConversations] = useState<Conversation[]>([]);
+    const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [search, setSearch] = useState("");
     const [newChatOpen, setNewChatOpen] = useState(false);
     const [newChatName, setNewChatName] = useState("");
     const [newChatMembers, setNewChatMembers] = useState("");
+    const [newChatType, setNewChatType] = useState<"direct" | "group">("group");
+    const [draft, setDraft] = useState<string>("");
+    const [loading, setLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(false);
+    const [searchResults, setSearchResults] = useState<User[]>([]);
+    const [userSearchQuery, setUserSearchQuery] = useState("");
 
-    const [draft, setDraft] = useState<string>(""); // ô nhập tin nhắn
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Load conversations on mount
+    useEffect(() => {
+        const loadConversations = async () => {
+            setLoading(true);
+            const result = await getConversations();
+            console.log("API Response:", result); // Debug log
+            if (result.ok && result.data) {
+                console.log("Conversations data:", result.data); // Debug log
+                setConversations(result.data);
+                // Auto-select first conversation if none selected
+                if (!selectedConversationId && result.data.length > 0) {
+                    setSelectedConversationId(result.data[0].id);
+                }
+            } else {
+                console.error("Failed to load conversations:", result.error);
+            }
+            setLoading(false);
+        };
+        loadConversations();
+    }, [selectedConversationId]);
+
+    // Load messages when conversation changes
+    useEffect(() => {
+        const loadMessages = async (conversationId: number) => {
+            setMessagesLoading(true);
+            const result = await getMessages(conversationId, { limit: 50 });
+            if (result.ok && result.data) {
+                setMessages(result.data);
+            }
+            setMessagesLoading(false);
+        };
+
+        if (selectedConversationId) {
+            loadMessages(selectedConversationId);
+        }
+    }, [selectedConversationId]);
+
+    // Search users for creating conversations
+    useEffect(() => {
+        if (userSearchQuery.trim()) {
+            handleUserSearch(userSearchQuery);
+        } else {
+            setSearchResults([]);
+        }
+    }, [userSearchQuery]);
+
+    const handleUserSearch = async (query: string) => {
+        const result = await searchUsers({ q: query, limit: 10 });
+        if (result.ok && result.data) {
+            setSearchResults(result.data);
+        }
+    };
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return chats;
-        return chats.filter((c) => c.name.toLowerCase().includes(q));
-    }, [search, chats]);
+        if (!q || !Array.isArray(conversations)) return conversations;
+        return conversations.filter((c) => c.title?.toLowerCase().includes(q) || c.lastMessageSender?.toLowerCase().includes(q));
+    }, [search, conversations]);
 
-    const selected = useMemo(() => chats.find((c) => c.id === selectedChatId) || null, [chats, selectedChatId]);
+    const selected = useMemo(() => {
+        if (!Array.isArray(conversations)) return null;
+        return conversations.find((c) => c.id === selectedConversationId) || null;
+    }, [conversations, selectedConversationId]);
 
     function handleSelectChat(id: number) {
-        setSelectedChatId(id);
-        // reset unread
-        setChats((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+        setSelectedConversationId(id);
     }
 
-    function handleSend() {
+    const handleSend = async () => {
         if (!selected || !draft.trim()) return;
-        const text = draft.trim();
-        const time = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
-        setChats((prev) =>
-            prev.map((c) =>
-                c.id === selected.id
-                    ? {
-                          ...c,
-                          messages: [...c.messages, { id: crypto.randomUUID(), from: "me", text, time }],
-                          lastMessage: text,
-                      }
-                    : c
-            )
-        );
+
+        const content = draft.trim();
         setDraft("");
-        // giả lập bên kia trả lời + tăng unread (nếu chat khác)
-        setTimeout(() => {
-            setChats((prev) =>
-                prev.map((c) =>
-                    c.id === selected.id
-                        ? {
-                              ...c,
-                              messages: [...c.messages, { id: crypto.randomUUID(), from: "them", text: "Đã nhận ✅", time: time }],
-                              lastMessage: "Đã nhận ✅",
-                          }
-                        : c
-                )
-            );
-        }, 500);
-    }
+
+        // Optimistically add message to UI
+        const tempMessage: Message = {
+            id: Date.now(), // Temporary ID
+            conversationId: selected.id,
+            senderId: 0, // Will be set by server
+            content,
+            contentType: "text",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            sender: {
+                id: 0,
+                username: "you",
+                displayName: "You",
+                avatarUrl: "",
+            },
+        };
+
+        setMessages((prev) => [...prev, tempMessage]);
+
+        // Send to server
+        const result = await apiSendMessage({
+            conversationId: selected.id,
+            content,
+            contentType: "text",
+        });
+
+        if (result.ok && result.data) {
+            // Replace temp message with real one
+            setMessages((prev) => prev.map((m) => (m.id === tempMessage.id ? result.data! : m)));
+        } else {
+            // Remove temp message on error
+            setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+        }
+    };
 
     function onDraftKey(e: React.KeyboardEvent<HTMLInputElement>) {
         if (e.key === "Enter") {
@@ -120,31 +152,50 @@ export default function Mainchat() {
         }
     }
 
-    function handleCreateChat() {
-        const name = newChatName.trim();
-        if (!name) return;
-        const members = newChatMembers
+    const handleCreateChat = async () => {
+        const title = newChatName.trim();
+        if (!title && newChatType === "group") return;
+
+        // Parse member usernames/IDs
+        const memberUsernames = newChatMembers
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean);
 
-        const id = Math.max(0, ...chats.map((c) => c.id)) + 1;
-        const newChat: Chat = {
-            id,
-            name,
-            lastMessage: "Hãy gửi lời chào 👋",
-            avatar: "",
-            unread: 0,
-            participants: ["you", ...members],
-            messages: [],
+        // For now, we'll need to search for users by username to get their IDs
+        // This is a simplified implementation
+        const memberIds: number[] = [];
+        for (const username of memberUsernames) {
+            const result = await searchUsers({ q: username, limit: 1 });
+            if (result.ok && result.data && result.data.length > 0) {
+                memberIds.push(result.data[0].id);
+            }
+        }
+
+        const conversationData = {
+            type: newChatType,
+            title: newChatType === "group" ? title : undefined,
+            memberIds,
         };
-        setChats((prev) => [newChat, ...prev]);
-        setSelectedChatId(id);
-        setNewChatOpen(false);
-        setNewChatName("");
-        setNewChatMembers("");
-        // focus vào input nhắn
-        setTimeout(() => inputRef.current?.focus(), 0);
+
+        const result = await createConversation(conversationData);
+        if (result.ok && result.data) {
+            setConversations((prev) => [result.data!, ...prev]);
+            setSelectedConversationId(result.data.id);
+            setNewChatOpen(false);
+            setNewChatName("");
+            setNewChatMembers("");
+            // Focus input
+            setTimeout(() => inputRef.current?.focus(), 0);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="flex h-[calc(100vh-200px)] items-center justify-center">
+                <Loader2 className="size-8 animate-spin" />
+            </div>
+        );
     }
 
     return (
@@ -166,16 +217,69 @@ export default function Mainchat() {
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>Tạo cuộc trò chuyện mới</DialogTitle>
-                                <DialogDescription>Nhập tên cuộc trò chuyện và (tuỳ chọn) danh sách thành viên.</DialogDescription>
+                                <DialogDescription>Chọn loại cuộc trò chuyện và thêm thành viên.</DialogDescription>
                             </DialogHeader>
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Tên cuộc trò chuyện</label>
-                                    <Input value={newChatName} onChange={(e) => setNewChatName(e.target.value)} placeholder="VD: Nhóm học ATTT" />
+                                    <label className="text-sm font-medium">Loại cuộc trò chuyện</label>
+                                    <div className="flex gap-2">
+                                        <Button variant={newChatType === "direct" ? "default" : "outline"} onClick={() => setNewChatType("direct")} size="sm">
+                                            Trực tiếp
+                                        </Button>
+                                        <Button variant={newChatType === "group" ? "default" : "outline"} onClick={() => setNewChatType("group")} size="sm">
+                                            Nhóm
+                                        </Button>
+                                    </div>
                                 </div>
+
+                                {newChatType === "group" && (
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Tên nhóm</label>
+                                        <Input value={newChatName} onChange={(e) => setNewChatName(e.target.value)} placeholder="VD: Nhóm học ATTT" />
+                                    </div>
+                                )}
+
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Thành viên (phân cách dấu phẩy)</label>
-                                    <Input value={newChatMembers} onChange={(e) => setNewChatMembers(e.target.value)} placeholder="VD: Quân, Minh, Thảo" />
+                                    <label className="text-sm font-medium">Tìm kiếm thành viên</label>
+                                    <Input value={userSearchQuery} onChange={(e) => setUserSearchQuery(e.target.value)} placeholder="Nhập tên người dùng..." />
+                                    {searchResults.length > 0 && (
+                                        <div className="max-h-32 overflow-y-auto border rounded p-2 space-y-1">
+                                            {searchResults.map((user) => (
+                                                <div
+                                                    key={user.id}
+                                                    className="flex items-center gap-2 p-1 hover:bg-muted rounded cursor-pointer"
+                                                    onClick={() => {
+                                                        const currentMembers = newChatMembers ? newChatMembers.split(",") : [];
+                                                        if (!currentMembers.includes(user.username)) {
+                                                            setNewChatMembers((prev) => (prev ? `${prev}, ${user.username}` : user.username));
+                                                        }
+                                                        setUserSearchQuery("");
+                                                        setSearchResults([]);
+                                                    }}
+                                                >
+                                                    <Avatar className="h-6 w-6">
+                                                        <AvatarImage src={user.avatarUrl} />
+                                                        <AvatarFallback className="text-xs">
+                                                            {user.displayName
+                                                                .split(" ")
+                                                                .map((n) => n[0])
+                                                                .join("")
+                                                                .slice(0, 2)}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="text-sm">
+                                                        <div className="font-medium">{user.displayName}</div>
+                                                        <div className="text-muted-foreground">@{user.username}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Thành viên đã chọn</label>
+                                    <Input value={newChatMembers} onChange={(e) => setNewChatMembers(e.target.value)} placeholder="VD: quannguyen, minhtran" readOnly />
                                 </div>
                             </div>
                             <DialogFooter>
@@ -201,37 +305,52 @@ export default function Mainchat() {
                 </div>
 
                 <div className="overflow-y-auto flex-1">
-                    {filtered.length === 0 && <div className="text-sm text-muted-foreground p-4">Không tìm thấy cuộc trò chuyện.</div>}
-                    {filtered.map((chat) => (
-                        <div
-                            key={chat.id}
-                            onClick={() => handleSelectChat(chat.id)}
-                            className={`flex items-center gap-3 p-3 cursor-pointer transition border-b border-border/50 ${selectedChatId === chat.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"}`}
-                        >
-                            <Avatar className="h-10 w-10">
-                                <AvatarImage src={chat.avatar || ""} alt={chat.name} />
-                                <AvatarFallback>
-                                    {chat.name
-                                        .split(" ")
-                                        .map((n) => n[0])
-                                        .slice(0, 2)
-                                        .join("")}
-                                </AvatarFallback>
-                            </Avatar>
+                    {!Array.isArray(filtered) || filtered.length === 0 ? (
+                        <div className="text-sm text-muted-foreground p-4">Không tìm thấy cuộc trò chuyện.</div>
+                    ) : (
+                        filtered.map((conversation) => {
+                            // Get conversation display info
+                            const displayTitle = conversation.title || (conversation.type === "direct" ? `${conversation.lastMessageSender || "User"}` : "Conversation");
+                            const lastMessage = conversation.lastMessage || "Nhấp để xem tin nhắn...";
 
-                            <div className="min-w-0 flex-1">
-                                <div className="flex items-center justify-between">
-                                    <div className="font-medium truncate">{chat.name}</div>
-                                    {chat.unread > 0 && (
-                                        <Badge variant="destructive" className="px-1 min-w-[20px] justify-center">
-                                            {chat.unread}
-                                        </Badge>
-                                    )}
+                            return (
+                                <div
+                                    key={conversation.id}
+                                    onClick={() => handleSelectChat(conversation.id)}
+                                    className={`flex items-center gap-3 p-3 cursor-pointer transition border-b border-border/50 ${selectedConversationId === conversation.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"}`}
+                                >
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage src={conversation.avatarUrl || ""} alt={displayTitle} />
+                                        <AvatarFallback>
+                                            {displayTitle
+                                                .split(" ")
+                                                .map((n) => n[0])
+                                                .slice(0, 2)
+                                                .join("")}
+                                        </AvatarFallback>
+                                    </Avatar>
+
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between">
+                                            <div className="font-medium truncate">{displayTitle}</div>
+                                            <Badge variant="secondary" className="px-1 min-w-[20px] justify-center">
+                                                {conversation.memberCount}
+                                            </Badge>
+                                        </div>
+                                        <div className="text-sm text-muted-foreground truncate">{lastMessage}</div>
+                                        {conversation.lastMessageTime && (
+                                            <div className="text-xs text-muted-foreground">
+                                                {new Date(conversation.lastMessageTime).toLocaleTimeString("vi-VN", {
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="text-sm text-muted-foreground truncate">{chat.lastMessage}</div>
-                            </div>
-                        </div>
-                    ))}
+                            );
+                        })
+                    )}
                 </div>
             </div>
 
@@ -242,9 +361,9 @@ export default function Mainchat() {
                         {selected && (
                             <>
                                 <Avatar className="h-9 w-9">
-                                    <AvatarImage src={selected.avatar || ""} alt={selected.name} />
+                                    <AvatarImage src={selected.avatarUrl || ""} alt={selected.title || "Chat"} />
                                     <AvatarFallback>
-                                        {selected.name
+                                        {(selected.title || "Chat")
                                             .split(" ")
                                             .map((n) => n[0])
                                             .slice(0, 2)
@@ -252,8 +371,11 @@ export default function Mainchat() {
                                     </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                    <div className="font-semibold">{selected.name}</div>
-                                    <div className="text-xs text-muted-foreground">{selected.participants?.join(", ")}</div>
+                                    <div className="font-semibold">{selected.title || "Conversation"}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        {selected.memberCount} thành viên
+                                        {selected.lastMessageSender && ` • Tin nhắn cuối: ${selected.lastMessageSender}`}
+                                    </div>
                                 </div>
                             </>
                         )}
@@ -264,12 +386,19 @@ export default function Mainchat() {
                 </div>
 
                 <div className="flex-1 p-4 overflow-y-auto">
-                    {selected ? (
+                    {messagesLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="size-6 animate-spin" />
+                        </div>
+                    ) : selected ? (
                         <div className="space-y-2">
-                            {selected.messages.map((m) => (
-                                <div key={m.id} className={`max-w-[75%] rounded-2xl px-3 py-2 leading-relaxed ${m.from === "me" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                    <div>{m.text}</div>
-                                    <div className={`mt-1 text-[10px] ${m.from === "me" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{m.time}</div>
+                            {messages.map((message) => (
+                                <div key={message.id} className={`max-w-[75%] rounded-2xl px-3 py-2 leading-relaxed ${message.sender.username === "you" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted"}`}>
+                                    <div className="text-xs font-medium mb-1">{message.sender.displayName}</div>
+                                    <div>{message.content}</div>
+                                    <div className={`mt-1 text-[10px] ${message.sender.username === "you" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                                        {new Date(message.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                                    </div>
                                 </div>
                             ))}
                         </div>
