@@ -10,6 +10,15 @@ const server = http.createServer(app);
 const pool = require("./config/db");
 const PORT = process.env.PORT;
 
+// Initialize Socket.io
+const io = initializeSocket(server);
+
+// Make io accessible to req object
+app.use((req, res, next) => {
+    req.io = io;
+    next();
+});
+
 // import
 const authRoutes = require("./routes/auth.routes");
 const profileRoutes = require("./routes/profile.routes");
@@ -42,14 +51,14 @@ app.use(errorHandler);
 pool.getConnection()
     .then((connection) => {
         console.log("Connected to MySQL database");
-
-        // Initialize Socket.io
-        const io = initializeSocket(server);
+        connection.release(); // release to pool
 
         server.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
+            console.log(`Socket.IO server is ready for connections`);
         });
     })
     .catch((error) => {
         console.error("Error connecting to MySQL database:", error);
+        process.exit(1);
     });

@@ -1,0 +1,114 @@
+import { createContext, useEffect, useState, type ReactNode } from "react";
+import { io, type Socket } from "socket.io-client";
+import { useAuth } from "@/hook/useAuth";
+
+interface SocketContextType {
+    socket: Socket | null; //doi yuong dang ket noi socket
+    connected: boolean; //trang thai ket noi
+    onlineUsers: Array<{ id: number; username: string; displayName: string; avatarUrl?: string }>; //danh sach user online
+}
+
+const SocketContext = createContext<SocketContextType | undefined>(undefined);
+
+export { SocketContext };
+
+export function SocketProvider({ children }: { children: ReactNode }) {
+    const [socket, setSocket] = useState<Socket | null>(null);
+    const [connected, setConnected] = useState(false);
+    const [onlineUsers, setOnlineUsers] = useState<Array<{ id: number; username: string; displayName: string; avatarUrl?: string }>>([]);
+    const { user, isAuthenticated } = useAuth();
+
+    useEffect(() => {
+        if (isAuthenticated && user) {
+            // Ngắt kết nối cũ nếu có
+            if (socket) {
+                socket.disconnect();
+            }
+
+            // Tạo kết nối socket với token authentication
+            const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
+                auth: { token: localStorage.getItem("token") || "" },
+                autoConnect: true,
+                reconnection: true,
+                // withCredentials: true,
+                reconnectionAttempts: 10,
+                reconnectionDelay: 500,
+            });
+
+            /* on : nhận sự kiện , emit : gửi sự kiện 
+            
+            */
+
+            // Lắng nghe các events
+            newSocket.on("connect", () => {
+                console.log("Socket connected:", newSocket.id);
+                setConnected(true);
+
+                // Lấy danh sách users online  -- gửi yêu cầu đến server để lấy danh sách user online
+                newSocket.emit("get_online_users");
+            });
+
+            newSocket.on("disconnect", () => {
+                console.log("Socket disconnected");
+                setConnected(false);
+            });
+
+            newSocket.on("online_users", (users) => {
+                console.log("Online users:", users);
+                setOnlineUsers(users);
+            });
+
+            newSocket.on("user_online", (userData) => {
+                setOnlineUsers((prev) => {
+                    const exists = prev.find((u) => u.id === userData.userId);
+                    if (!exists) {
+                        return [
+                            ...prev,
+                            {
+                                id: userData.userId,
+                                username: userData.username,
+                                displayName: userData.displayName,
+                                avatarUrl: userData.avatarUrl,
+                            },
+                        ];
+                    }
+                    return prev;
+                });
+            });
+
+            newSocket.on("user_offline", (userData) => {
+                setOnlineUsers((prev) => prev.filter((u) => u.id !== userData.userId));
+            });
+
+            newSocket.on("error", (error) => {
+                console.error("Socket error:", error);
+            });
+
+            setSocket(newSocket);
+
+            return () => {
+                newSocket.disconnect();
+                setSocket(null);
+                setConnected(false);
+                setOnlineUsers([]);
+            };
+        } else {
+            // Ngắt kết nối nếu không authenticated
+            if (socket) {
+                socket.disconnect();
+                setSocket(null);
+                setConnected(false);
+                setOnlineUsers([]);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, user]);
+
+    const value = {
+        socket,
+        connected,
+        onlineUsers,
+    };
+
+    return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
+}

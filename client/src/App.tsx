@@ -6,6 +6,7 @@ import { LoginForm } from "@/components/auth/login-form";
 import NotFound from "@/components/page/404";
 import Navbar from "@/components/page/navbar";
 import Footer from "@/components/page/footer";
+import { SocketProvider } from "@/context/SocketContext";
 
 function SmartRedirect() {
     const hasToken = !!localStorage.getItem("token");
@@ -15,21 +16,25 @@ function SmartRedirect() {
 function App() {
     return (
         <AuthProvider>
-            <Navbar />
-            <Routes>
-                {/* KHÁCH: chỉ hiển thị khi CHƯA login */}
-                <Route element={<GuestOnly />}>
-                    <Route path="/login" element={<LoginForm />} />
-                </Route>
-                {/* ĐÃ LOGIN: phải có token mới vào được */}
-                <Route element={<RequireAuth />}>
-                    <Route path="/home" element={<Home />} />
-                    <Route path="/404" element={<NotFound />} />
-                </Route>
-                {/* Catch-all routes */}
-                <Route path="*" element={<SmartRedirect />} />
-            </Routes>
-            <Footer />
+            <SocketProvider>
+                <Navbar />
+                <Routes>
+                    {/* KHÁCH: chỉ hiển thị khi CHƯA login */}
+                    <Route element={<GuestOnly />}>
+                        <Route path="/login" element={<LoginForm />} />
+                    </Route>
+                    {/* ĐÃ LOGIN: phải có token mới vào được */}
+                    <Route element={<RequireAuth />}>
+                        <Route path="/home" element={<Home />} />
+                        <Route index element={<Navigate to="/home" replace />} />
+
+                        <Route path="/404" element={<NotFound />} />
+                    </Route>
+                    {/* Catch-all routes */}
+                    <Route path="*" element={<SmartRedirect />} />
+                </Routes>
+                <Footer />
+            </SocketProvider>
         </AuthProvider>
     );
 }

@@ -39,6 +39,13 @@ const errorHandler = (err, req, res, next) => {
         });
     }
 
+    // if (err.code === "ER_DUP_ENTRY") {
+    //     return res.status(400).json({
+    //         error: "Foreign key constraint",
+    //         message: "Referenced resource does not exist",
+    //     });
+    // }
+
     // Default error
     const statusCode = err.statusCode || 500;
     const message = err.message || "Internal Server Error";

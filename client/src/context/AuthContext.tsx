@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 interface User {
@@ -11,8 +11,10 @@ interface AuthContextType {
     user: User | null;
     logout: () => void;
     refreshUser: () => Promise<void>;
+    isAuthenticated: boolean;
 }
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export { AuthContext };
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const navigate = useNavigate();
@@ -75,12 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         logout,
         refreshUser,
+        isAuthenticated: !!user,
     };
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuthContext() {
-    const context = useContext(AuthContext);
-    if (context === undefined) throw new Error("useAuthContext phải được sử dụng trong AuthProvider");
-    return context;
 }
