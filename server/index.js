@@ -50,13 +50,14 @@ app.use(errorHandler);
 // start server
 pool.getConnection()
     .then((connection) => {
+        console.log(`-------------------------------------------`);
         console.log("Connected to MySQL database");
         connection.release(); // release to pool
 
         server.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`Socket.IO server is ready for connections`);
-            console.log(`---------------------\n`);
+            console.log(`-------------------------------------------\n`);
         });
     })
     .catch((error) => {

@@ -12,7 +12,7 @@ async function createConversation({ type = "direct", title = null, avatarUrl = "
         const conversationId = result.insertId; // Lấy ID của conversation vừa tạo
 
         // Thêm creator vào conversation với role admin
-        await connection.query("INSERT INTO conversation_members (conversationId, userId, role) VALUES (?, ?, ?)", [conversationId, creatorId, "admin"]);
+        await connection.query("INSERT INTO conversation_members (conversationId, userId, role) VALUES (?, ?, ?)", [conversationId, creatorId, `${type === "direct" ? "member" : " admin"}`]);
 
         // Thêm các member khác với role member
         for (const memberId of memberIds) {
@@ -48,6 +48,11 @@ async function getUserConversations(userId) {
                 cm.role,
                 cm.joinedAt,
                 (SELECT COUNT(*) FROM conversation_members WHERE conversationId = c.id) as memberCount,
+                (SELECT GROUP_CONCAT(u.displayName, '_', u.username, '|')
+                    FROM conversation_members cm2
+                    JOIN users u ON u.id = cm2.userId
+                    WHERE cm2.conversationId = c.id
+                    AND u.id <> ? ) AS memberUsers,
                 (SELECT content FROM messages WHERE conversationId = c.id ORDER BY createdAt DESC LIMIT 1) as lastMessage,
                 (SELECT createdAt FROM messages WHERE conversationId = c.id ORDER BY createdAt DESC LIMIT 1) as lastMessageTime,
                 (SELECT username FROM users u JOIN messages m ON u.id = m.senderId WHERE m.conversationId = c.id ORDER BY m.createdAt DESC LIMIT 1) as lastMessageSender
@@ -56,8 +61,15 @@ async function getUserConversations(userId) {
             WHERE cm.userId = ?
             ORDER BY lastMessageTime DESC, c.createdAt DESC
         `,
-            [userId]
+            [userId, userId]
         );
+        // //add membersUsers để trả json  N+1
+        // await Promise.all(
+        //     rows.map(async (c) => {
+        //         const [memberUser] = await db.query(`SELECT id, username, displayName, avatarUrl FROM users u JOIN conversation_members cm ON u.id = cm.userId WHERE cm.conversationId = ? AND u.id <> ?`, [c.id, userId]);
+        //         c.membersUsers = memberUser;
+        //     })
+        // );
 
         return rows;
     } catch (error) {

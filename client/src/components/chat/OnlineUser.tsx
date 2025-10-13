@@ -69,8 +69,8 @@ export default function OnlineUser() {
                                                 {/* Viền online */}
                                                 <span className="absolute -right-0.5 -bottom-0.5 block h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-background z-10"></span>
 
-                                                <Avatar className="h-10 w-10 ring-1 ring-border shadow-sm transition group-hover:scale-[1.03]">
-                                                    <AvatarImage src={u.avatarUrl} alt={u.displayName} />
+                                                <Avatar className=" size-16 ring-1 ring-border shadow-sm transition group-hover:scale-[1.03] border-1 border-black">
+                                                    <AvatarImage className="object-cover" src={u.avatarUrl} alt={u.displayName} />
                                                     <AvatarFallback className="bg-black text-white text-xs font-bold">{initials}</AvatarFallback>
                                                 </Avatar>
                                             </div>

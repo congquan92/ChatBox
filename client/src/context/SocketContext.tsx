@@ -35,8 +35,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 reconnectionDelay: 500,
             });
 
-            /* on : nhận sự kiện , emit : gửi sự kiện 
-            
+            /* .
+                .emit() là gửi sự kiện đi.
+                .on() là lắng nghe sự kiện đến.
             */
 
             // Lắng nghe các events
@@ -44,7 +45,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 console.log("Socket connected:", newSocket.id);
                 setConnected(true);
 
-                // Lấy danh sách users online  -- gửi yêu cầu đến server để lấy danh sách user online
+                // Lấy danh sách users online  -- gửi yêu cầu đến server để lấy danh sách user online    --
                 newSocket.emit("get_online_users");
             });
 
@@ -80,10 +81,29 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 setOnlineUsers((prev) => prev.filter((u) => u.id !== userData.userId));
             });
 
+            // Lắng nghe sự kiện tạo cuộc trò chuyện mới
+            newSocket.on("conversation_created", (conversation) => {
+                console.log("New conversation created:", conversation);
+            });
+
+            /*  “Gửi một sự kiện 'join_conversation' với payload là một hàm”
+                 backend nhận được hàm đó, chứ không có dữ liệu conversationId gì hết.
+
+            newSocket.emit("join_conversation", (data) => {
+                console.log(`User ${data.userId} joined conversation ${data.conversationId}`);
+            }); */
+
+            // CONVERSATION EVENTS
+            newSocket.on("joined_conversation", (data) => {
+                console.log(data);
+            });
+
+            // TEST
+            // newSocket.emit("test_event", { message: "Hello from client" });
+
             newSocket.on("error", (error) => {
                 console.error("Socket error:", error);
             });
-
             setSocket(newSocket);
 
             return () => {

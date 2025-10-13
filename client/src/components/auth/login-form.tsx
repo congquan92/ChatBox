@@ -24,7 +24,7 @@ export function LoginForm() {
         }
     };
     return (
-        <div className="relative flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="relative flex items-center justify-center bg-background p-10 container mx-auto">
             <Card className="w-full max-w-3xl overflow-hidden shadow-lg">
                 <CardContent className="grid p-0 md:grid-cols-2">
                     {/* Form */}

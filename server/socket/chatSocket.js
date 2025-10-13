@@ -16,7 +16,7 @@ function initializeSocket(server) {
     // Middleware xác thực người dùng khi kết nối
     io.use(socketAuth);
 
-    io.on("connection", (socket) => {
+    io.on("connection", async (socket) => {
         const user = socket.user; // Lấy thông tin user từ middleware xác thực
         console.log(`user ${user.username} connected with socket ${socket.id}`);
 
@@ -32,9 +32,6 @@ function initializeSocket(server) {
         });
         userSockets.set(socket.id, user.id);
 
-        // Join user vào các conversation rooms
-        joinUserConversations(socket, user.id, user);
-
         // Thông báo user online cho tất cả bạn bè
         socket.broadcast.emit("user_online", {
             userId: user.id,
@@ -44,6 +41,10 @@ function initializeSocket(server) {
         });
 
         // === CONVERSATION EVENTS ===
+
+        // Join user vào các conversation rooms
+        const t = await joinUserConversations(socket, user.id, user);
+        socket.emit("joined_conversation", t); // conversations user đã join cho client
 
         // Tạo conversation mới
         socket.on("create_conversation", async (data) => {
@@ -283,7 +284,12 @@ function initializeSocket(server) {
             });
         });
 
-        // Error handling
+        // TEST
+        socket.on("test_event", (data) => {
+            console.log(data);
+        });
+
+        // ERROR HANDLING
         socket.on("error", (error) => {
             console.error("Socket error:", error);
         });
@@ -300,6 +306,8 @@ async function joinUserConversations(socket, userId, user) {
             socket.join(`conversation_${conversation.id}`);
         });
         console.log(`user ${user.username}(${user.id}) joined ${conversations.length} conversation rooms`);
+        return { user, conversations };
+        // console.log(conversations.map((c) => console.log(c)));
     } catch (error) {
         console.error("Error joining user conversations:", error);
     }
