@@ -1,3 +1,4 @@
+//2025-10-09 08:48:49 → 08:48 or 2025-10-09
 export function formatTimeISO(iso?: string | null) {
     if (!iso) return "";
     const d = new Date(iso);

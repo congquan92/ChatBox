@@ -2,10 +2,119 @@ import { createContext, useEffect, useState, type ReactNode } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/hook/useAuth";
 
+interface User {
+    id: number;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+}
+
+interface Message {
+    id: number;
+    conversationId: number;
+    senderId: number;
+    content: string;
+    contentType: "text" | "image" | "file" | "system";
+    createdAt: string;
+    editedAt?: string;
+    sender: {
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface Conversation {
+    id: number;
+    type: "direct" | "group";
+    title?: string;
+    avatarUrl?: string;
+    coverGifUrl?: string;
+    label?: string;
+    createdAt: string;
+    creator: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface TypingUser {
+    userId: number;
+    username: string;
+    displayName: string;
+    conversationId: number;
+}
+
+interface CreateConversationData {
+    type: "direct" | "group";
+    title?: string;
+    memberIds: number[];
+    avatarUrl?: string;
+    coverGifUrl?: string;
+    label?: string;
+}
+
+interface MessageEditedData {
+    messageId: number;
+    content: string;
+    editedAt: string;
+    editedBy: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface MessageDeletedData {
+    messageId: number;
+    deletedBy: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+    deletedAt: string;
+}
+
+interface MessageReadData {
+    messageId: number;
+    readBy: {
+        userId: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+    timestamp: string;
+}
+
 interface SocketContextType {
-    socket: Socket | null; //doi yuong dang ket noi socket
-    connected: boolean; //trang thai ket noi
-    onlineUsers: Array<{ id: number; username: string; displayName: string; avatarUrl?: string }>; //danh sach user online
+    socket: Socket | null;
+    connected: boolean;
+    onlineUsers: User[];
+    typingUsers: TypingUser[];
+    // Message events
+    sendMessage: (conversationId: number, content: string, contentType?: string) => void;
+    editMessage: (messageId: number, content: string) => void;
+    deleteMessage: (messageId: number) => void;
+    markMessageAsRead: (messageId: number) => void;
+    // Conversation events
+    createConversation: (data: CreateConversationData) => void;
+    joinConversation: (conversationId: number) => void;
+    leaveConversation: (conversationId: number) => void;
+    // Typing events
+    startTyping: (conversationId: number) => void;
+    stopTyping: (conversationId: number) => void;
+    // Event listeners
+    onNewMessage: (callback: (message: Message) => void) => void;
+    onMessageEdited: (callback: (data: MessageEditedData) => void) => void;
+    onMessageDeleted: (callback: (data: MessageDeletedData) => void) => void;
+    onMessageRead: (callback: (data: MessageReadData) => void) => void;
+    onConversationCreated: (callback: (conversation: Conversation) => void) => void;
+    onUserTyping: (callback: (user: TypingUser) => void) => void;
+    onUserStopTyping: (callback: (user: TypingUser) => void) => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
@@ -15,8 +124,104 @@ export { SocketContext };
 export function SocketProvider({ children }: { children: ReactNode }) {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [connected, setConnected] = useState(false);
-    const [onlineUsers, setOnlineUsers] = useState<Array<{ id: number; username: string; displayName: string; avatarUrl?: string }>>([]);
+    const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
+    const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
     const { user, isAuthenticated } = useAuth();
+
+    // Event listeners storage
+    const eventListeners = {
+        newMessage: [] as Array<(message: Message) => void>,
+        messageEdited: [] as Array<(data: MessageEditedData) => void>,
+        messageDeleted: [] as Array<(data: MessageDeletedData) => void>,
+        messageRead: [] as Array<(data: MessageReadData) => void>,
+        conversationCreated: [] as Array<(conversation: Conversation) => void>,
+        userTyping: [] as Array<(user: TypingUser) => void>,
+        userStopTyping: [] as Array<(user: TypingUser) => void>,
+    };
+
+    // Socket event functions
+    const sendMessage = (conversationId: number, content: string, contentType: string = "text") => {
+        if (socket) {
+            socket.emit("send_message", { conversationId, content, contentType });
+        }
+    };
+
+    const editMessage = (messageId: number, content: string) => {
+        if (socket) {
+            socket.emit("edit_message", { messageId, content });
+        }
+    };
+
+    const deleteMessage = (messageId: number) => {
+        if (socket) {
+            socket.emit("delete_message", { messageId });
+        }
+    };
+
+    const markMessageAsRead = (messageId: number) => {
+        if (socket) {
+            socket.emit("mark_message_read", { messageId });
+        }
+    };
+
+    const createConversation = (data: CreateConversationData) => {
+        if (socket) {
+            socket.emit("create_conversation", data);
+        }
+    };
+
+    const joinConversation = (conversationId: number) => {
+        if (socket) {
+            socket.emit("join_conversation", { conversationId });
+        }
+    };
+
+    const leaveConversation = (conversationId: number) => {
+        if (socket) {
+            socket.emit("leave_conversation", { conversationId });
+        }
+    };
+
+    const startTyping = (conversationId: number) => {
+        if (socket) {
+            socket.emit("typing_start", { conversationId });
+        }
+    };
+
+    const stopTyping = (conversationId: number) => {
+        if (socket) {
+            socket.emit("typing_stop", { conversationId });
+        }
+    };
+
+    // Event listener registration functions
+    const onNewMessage = (callback: (message: Message) => void) => {
+        eventListeners.newMessage.push(callback);
+    };
+
+    const onMessageEdited = (callback: (data: MessageEditedData) => void) => {
+        eventListeners.messageEdited.push(callback);
+    };
+
+    const onMessageDeleted = (callback: (data: MessageDeletedData) => void) => {
+        eventListeners.messageDeleted.push(callback);
+    };
+
+    const onMessageRead = (callback: (data: MessageReadData) => void) => {
+        eventListeners.messageRead.push(callback);
+    };
+
+    const onConversationCreated = (callback: (conversation: Conversation) => void) => {
+        eventListeners.conversationCreated.push(callback);
+    };
+
+    const onUserTyping = (callback: (user: TypingUser) => void) => {
+        eventListeners.userTyping.push(callback);
+    };
+
+    const onUserStopTyping = (callback: (user: TypingUser) => void) => {
+        eventListeners.userStopTyping.push(callback);
+    };
 
     useEffect(() => {
         if (isAuthenticated && user) {
@@ -30,22 +235,14 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 auth: { token: localStorage.getItem("token") || "" },
                 autoConnect: true,
                 reconnection: true,
-                // withCredentials: true,
                 reconnectionAttempts: 10,
                 reconnectionDelay: 500,
             });
 
-            /* .
-                .emit() là gửi sự kiện đi.
-                .on() là lắng nghe sự kiện đến.
-            */
-
-            // Lắng nghe các events
+            // Basic connection events
             newSocket.on("connect", () => {
                 console.log("Socket connected:", newSocket.id);
                 setConnected(true);
-
-                // Lấy danh sách users online  -- gửi yêu cầu đến server để lấy danh sách user online    --
                 newSocket.emit("get_online_users");
             });
 
@@ -54,12 +251,13 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 setConnected(false);
             });
 
-            newSocket.on("online_users", (users) => {
+            // Online users events
+            newSocket.on("online_users", (users: User[]) => {
                 console.log("Online users:", users);
                 setOnlineUsers(users);
             });
 
-            newSocket.on("user_online", (userData) => {
+            newSocket.on("user_online", (userData: { userId: number; username: string; displayName: string; avatarUrl?: string }) => {
                 setOnlineUsers((prev) => {
                     const exists = prev.find((u) => u.id === userData.userId);
                     if (!exists) {
@@ -77,33 +275,58 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 });
             });
 
-            newSocket.on("user_offline", (userData) => {
+            newSocket.on("user_offline", (userData: { userId: number; username: string }) => {
                 setOnlineUsers((prev) => prev.filter((u) => u.id !== userData.userId));
             });
 
-            // Lắng nghe sự kiện tạo cuộc trò chuyện mới
-            newSocket.on("conversation_created", (conversation) => {
+            // Message events
+            newSocket.on("new_message", (message: Message) => {
+                eventListeners.newMessage.forEach((callback) => callback(message));
+            });
+
+            newSocket.on("message_edited", (data: MessageEditedData) => {
+                eventListeners.messageEdited.forEach((callback) => callback(data));
+            });
+
+            newSocket.on("message_deleted", (data: MessageDeletedData) => {
+                eventListeners.messageDeleted.forEach((callback) => callback(data));
+            });
+
+            newSocket.on("message_read", (data: MessageReadData) => {
+                eventListeners.messageRead.forEach((callback) => callback(data));
+            });
+
+            // Conversation events
+            newSocket.on("conversation_created", (conversation: Conversation) => {
                 console.log("New conversation created:", conversation);
+                eventListeners.conversationCreated.forEach((callback) => callback(conversation));
             });
 
-            /*  “Gửi một sự kiện 'join_conversation' với payload là một hàm”
-                 backend nhận được hàm đó, chứ không có dữ liệu conversationId gì hết.
-
-            newSocket.emit("join_conversation", (data) => {
-                console.log(`User ${data.userId} joined conversation ${data.conversationId}`);
-            }); */
-
-            // CONVERSATION EVENTS
-            newSocket.on("joined_conversation", (data) => {
-                console.log(data);
+            newSocket.on("joined_conversation", (data: unknown) => {
+                console.log("Joined conversations:", data);
             });
 
-            // TEST
-            // newSocket.emit("test_event", { message: "Hello from client" });
+            // Typing events
+            newSocket.on("user_typing", (user: TypingUser) => {
+                setTypingUsers((prev) => {
+                    const exists = prev.find((u) => u.userId === user.userId && u.conversationId === user.conversationId);
+                    if (!exists) {
+                        return [...prev, user];
+                    }
+                    return prev;
+                });
+                eventListeners.userTyping.forEach((callback) => callback(user));
+            });
 
-            newSocket.on("error", (error) => {
+            newSocket.on("user_stop_typing", (user: TypingUser) => {
+                setTypingUsers((prev) => prev.filter((u) => !(u.userId === user.userId && u.conversationId === user.conversationId)));
+                eventListeners.userStopTyping.forEach((callback) => callback(user));
+            });
+
+            newSocket.on("error", (error: unknown) => {
                 console.error("Socket error:", error);
             });
+
             setSocket(newSocket);
 
             return () => {
@@ -111,6 +334,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 setSocket(null);
                 setConnected(false);
                 setOnlineUsers([]);
+                setTypingUsers([]);
             };
         } else {
             // Ngắt kết nối nếu không authenticated
@@ -119,15 +343,36 @@ export function SocketProvider({ children }: { children: ReactNode }) {
                 setSocket(null);
                 setConnected(false);
                 setOnlineUsers([]);
+                setTypingUsers([]);
             }
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, user]);
 
     const value = {
         socket,
         connected,
         onlineUsers,
+        typingUsers,
+        // Message functions
+        sendMessage,
+        editMessage,
+        deleteMessage,
+        markMessageAsRead,
+        // Conversation functions
+        createConversation,
+        joinConversation,
+        leaveConversation,
+        // Typing functions
+        startTyping,
+        stopTyping,
+        // Event listeners
+        onNewMessage,
+        onMessageEdited,
+        onMessageDeleted,
+        onMessageRead,
+        onConversationCreated,
+        onUserTyping,
+        onUserStopTyping,
     };
 
     return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
