@@ -35,7 +35,7 @@ export default function Navbar() {
                     {/* Avatar + username (username là động) */}
                     <Avatar className="flex items-center gap-2 ">
                         <AvatarImage className="size-10 rounded-2xl object-cover" src={user?.avatarUrl} />
-                        <AvatarFallback className="size-10 bg-black text-xs uppercase text-white font-bold">{initial}</AvatarFallback>
+                        {initial && <AvatarFallback className="size-10 bg-black text-xs uppercase text-white font-bold">{initial}</AvatarFallback>}
                         <div className="text-sm font-medium text-foreground">{user?.displayName}</div>
                     </Avatar>
                 </div>
