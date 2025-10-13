@@ -5,8 +5,9 @@ import { RequireAuth, GuestOnly } from "@/router/guards";
 import { LoginForm } from "@/components/auth/login-form";
 import NotFound from "@/components/page/404";
 import Navbar from "@/components/page/navbar";
-import Footer from "@/components/page/footer";
+
 import { SocketProvider } from "@/context/SocketContext";
+import { Footer } from "@/components/page/footer";
 
 function SmartRedirect() {
     const hasToken = !!localStorage.getItem("token");
