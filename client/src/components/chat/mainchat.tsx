@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { getUserConversations } from "@/api/conversations";
+import { getUserConversations } from "@/api/conversations.api";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import OnlineUser from "@/components/chat/OnlineUser";

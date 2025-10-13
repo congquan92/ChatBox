@@ -1,26 +1,42 @@
-import { login } from "@/api/auth/login.api";
+import { loginUser } from "@/api/auth/auth.api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldSeparator } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+
 export function LoginForm() {
     const [userName, setUserName] = useState("");
     const [password, setPassword] = useState("");
     const [msg, setMsg] = useState("");
-    const navigate = useNavigate();
+    const location = useLocation();
     const [loading, setLoading] = useState(false);
+
+    // Hiển thị message từ register page nếu có
+    const successMessage = location.state?.message;
 
     const handleSubmit = async (e: FormEvent) => {
         setLoading(true);
         setMsg("");
         e.preventDefault();
-        const result = await login(userName, password, setMsg, setLoading);
-        if (result && result.ok) {
-            // navigate("/home", { replace: true });
-            window.location.href = "/home";
+
+        try {
+            const result = await loginUser({
+                username: userName,
+                password: password,
+            });
+
+            if (result && result.token) {
+                // Lưu token và redirect
+                localStorage.setItem("token", result.token);
+                window.location.href = "/home";
+            }
+        } catch (error) {
+            setMsg(error instanceof Error ? error.message : "Đăng nhập thất bại");
+        } finally {
+            setLoading(false);
         }
     };
     return (
@@ -34,6 +50,11 @@ export function LoginForm() {
                                 <h1 className="text-2xl font-bold">Welcome back</h1>
                                 <p className="text-balance text-muted-foreground">Login to your account</p>
                             </div>
+                            {successMessage && (
+                                <div className="rounded-md bg-green-50 p-4">
+                                    <div className="text-sm text-green-800">{successMessage}</div>
+                                </div>
+                            )}
                             {msg && <p className="text-sm text-red-600">{msg}</p>}
                             <Field>
                                 <FieldLabel htmlFor="username">User Name</FieldLabel>
@@ -89,9 +110,9 @@ export function LoginForm() {
 
                             <FieldDescription className="text-center">
                                 Don&apos;t have an account?{" "}
-                                <a href="#" className="underline">
+                                <Link to="/register" className="underline">
                                     Sign up
-                                </a>
+                                </Link>
                             </FieldDescription>
                         </FieldGroup>
                     </form>
