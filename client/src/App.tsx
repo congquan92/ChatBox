@@ -3,6 +3,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAuth, GuestOnly } from "@/router/guards";
 import { LoginForm } from "@/components/auth/login-form";
+import { RegisterForm } from "@/components/auth/register-form";
 import NotFound from "@/components/page/404";
 import Navbar from "@/components/page/navbar";
 
@@ -23,6 +24,7 @@ function App() {
                     {/* KHÁCH: chỉ hiển thị khi CHƯA login */}
                     <Route element={<GuestOnly />}>
                         <Route path="/login" element={<LoginForm />} />
+                        <Route path="/register" element={<RegisterForm />} />
                     </Route>
                     {/* ĐÃ LOGIN: phải có token mới vào được */}
                     <Route element={<RequireAuth />}>

@@ -2,10 +2,119 @@ import { createContext, useEffect, useState, type ReactNode } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/hook/useAuth";
 
+interface User {
+    id: number;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+}
+
+interface Message {
+    id: number;
+    conversationId: number;
+    senderId: number;
+    content: string;
+    contentType: "text" | "image" | "file" | "system";
+    createdAt: string;
+    editedAt?: string;
+    sender: {
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface Conversation {
+    id: number;
+    type: "direct" | "group";
+    title?: string;
+    avatarUrl?: string;
+    coverGifUrl?: string;
+    label?: string;
+    createdAt: string;
+    creator: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface TypingUser {
+    userId: number;
+    username: string;
+    displayName: string;
+    conversationId: number;
+}
+
+interface CreateConversationData {
+    type: "direct" | "group";
+    title?: string;
+    memberIds: number[];
+    avatarUrl?: string;
+    coverGifUrl?: string;
+    label?: string;
+}
+
+interface MessageEditedData {
+    messageId: number;
+    content: string;
+    editedAt: string;
+    editedBy: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+}
+
+interface MessageDeletedData {
+    messageId: number;
+    deletedBy: {
+        id: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+    deletedAt: string;
+}
+
+interface MessageReadData {
+    messageId: number;
+    readBy: {
+        userId: number;
+        username: string;
+        displayName: string;
+        avatarUrl?: string;
+    };
+    timestamp: string;
+}
+
 interface SocketContextType {
-    socket: Socket | null; //doi yuong dang ket noi socket
-    connected: boolean; //trang thai ket noi
-    onlineUsers: Array<{ id: number; username: string; displayName: string; avatarUrl?: string }>; //danh sach user online
+    socket: Socket | null;
+    connected: boolean;
+    onlineUsers: User[];
+    // Message events
+    sendMessage: (conversationId: number, content: string, contentType?: string) => void;
+    editMessage: (messageId: number, content: string) => void;
+    deleteMessage: (messageId: number) => void;
+    markMessageAsRead: (messageId: number) => void;
+    // Conversation events
+    createConversation: (data: CreateConversationData) => void;
+    joinConversation: (conversationId: number) => void;
+    leaveConversation: (conversationId: number) => void;
+    // Typing events
+    startTyping: (conversationId: number) => void;
+    stopTyping: (conversationId: number) => void;
+    typingUsers: TypingUser[];
+    // Event listeners
+    onNewMessage: (callback: (message: Message) => void) => void;
+    onMessageEdited: (callback: (data: MessageEditedData) => void) => void;
+    onMessageDeleted: (callback: (data: MessageDeletedData) => void) => void;
+    onMessageRead: (callback: (data: MessageReadData) => void) => void;
+    onConversationCreated: (callback: (conversation: Conversation) => void) => void;
+    onUserTyping: (callback: (user: TypingUser) => void) => void;
+    onUserStopTyping: (callback: (user: TypingUser) => void) => void;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
