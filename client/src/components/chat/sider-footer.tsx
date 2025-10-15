@@ -10,7 +10,7 @@ export default function SidebarFooter() {
         <>
             <div className="flex items-center gap-3">
                 <Avatar className="size-10">
-                    <AvatarImage src={user?.avatarUrl} className="object-cover" />
+                    <AvatarImage src={user?.avatarUrl} className="object-cover rounded-full border-2 border-black" />
                     <AvatarFallback>U</AvatarFallback>
                 </Avatar>
                 <div>

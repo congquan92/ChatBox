@@ -56,7 +56,7 @@ async function getUserConversations(userId) {
             WHERE cm.userId = ?
             ORDER BY lastMessageTime DESC, c.createdAt DESC
         `,
-            [userId, userId]
+            [userId]
         );
         // //add membersUsers để trả json  N+1   không cần thiết làm cái này
         // await Promise.all(

@@ -12,7 +12,7 @@ export interface Conversation {
     lastMessage: string;
     lastMessageTime: string;
     lastMessageSender: string;
-    members?: ConversationMember[];
+    members: ConversationMember[];
 }
 
 export interface ConversationMember {

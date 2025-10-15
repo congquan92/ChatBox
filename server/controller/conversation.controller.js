@@ -43,6 +43,12 @@ async function getUserConversations(req, res) {
     try {
         const userId = req.user.id;
         const conversations = await conversationModel.getUserConversations(userId);
+        for (const i of conversations) {
+            const t = await conversationModel.getConversationMembers(i.id, userId);
+            i.members = t;
+        }
+
+        // const members = await conversationModel.getConversationMembers(1, userId);
         return res.status(200).json({ conversations });
     } catch (error) {
         console.error("Error getting user conversations:", error);

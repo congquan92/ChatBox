@@ -16,14 +16,14 @@ export default function Navbar() {
                 {/* Logo tĩnh */}
                 <div className="flex items-center gap-3">
                     <Avatar>
-                        <AvatarImage className="size-10 rounded-2xl object-cover" src="https://www.creativefabrica.com/wp-content/uploads/2021/03/18/zeus-logo-design-template-premium-vector-Graphics-9731442-1-1-580x387.jpg" />
+                        <AvatarImage className="size-10 object-cover rounded-full" src="https://www.creativefabrica.com/wp-content/uploads/2021/03/18/zeus-logo-design-template-premium-vector-Graphics-9731442-1-1-580x387.jpg" />
                         <AvatarFallback className="size-10 bg-black text-xs uppercase text-white font-bold">ZC</AvatarFallback>
                     </Avatar>
                     <span className="hidden text-base font-semibold text-foreground sm:inline">ZuesChat</span>
                 </div>
 
                 {/* Tiêu đề tĩnh */}
-                <div className="truncate text-sm font-medium text-blue-950 dark:text-blue-300">Chào mừng đến với ZuesChat</div>
+                <div className="truncate text-sm font-medium text-blue-950 dark:text-blue-300">Xin Chào @{user?.userName}</div>
 
                 {/* Góc phải: icon tĩnh + username động */}
                 <div className="flex items-center gap-3">
@@ -34,7 +34,7 @@ export default function Navbar() {
 
                     {/* Avatar + username (username là động) */}
                     <Avatar className="flex items-center gap-2 ">
-                        <AvatarImage className="size-10 rounded-2xl object-cover" src={user?.avatarUrl} />
+                        <AvatarImage className="size-10 rounded-full object-cover border-1 border-black" src={user?.avatarUrl} />
                         {initial && <AvatarFallback className="size-10 bg-black text-xs uppercase text-white font-bold">{initial}</AvatarFallback>}
                         <div className="text-sm font-medium text-foreground">{user?.displayName}</div>
                     </Avatar>

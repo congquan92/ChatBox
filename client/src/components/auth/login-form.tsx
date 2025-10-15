@@ -62,13 +62,11 @@ export function LoginForm() {
                             </Field>
 
                             <Field>
-                                <div className="flex items-center">
-                                    <FieldLabel htmlFor="password">Password</FieldLabel>
-                                    <a href="#" className="ml-auto text-sm underline-offset-2 hover:underline">
-                                        Forgot your password?
-                                    </a>
-                                </div>
+                                <FieldLabel htmlFor="password">Password</FieldLabel>
                                 <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="**********" />
+                                <a href="#" className="ml-auto text-sm underline-offset-2 hover:underline">
+                                    Forgot your password?
+                                </a>
                             </Field>
 
                             <Field>

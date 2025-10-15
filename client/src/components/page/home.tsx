@@ -1,12 +1,9 @@
-import Mainchat from "@/components/chat/mainchat";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hook/useAuth";
-import { useNavigate } from "react-router-dom";
+import MainChat from "@/components/chat/mainchat";
 
 export default function Home() {
     return (
         <div>
-            <Mainchat />
+            <MainChat />
         </div>
     );
 }

@@ -1,22 +1,20 @@
+import type { Conversation } from "@/api/conversations.api";
+import ConversationItem from "@/components/chat/conversion/conversation-item";
+import SidebarFooter from "@/components/chat/sider-footer";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquareText } from "lucide-react";
-import SearchBox from "./SearchBox";
-import ConversationItem from "./ConversationItem";
-import SidebarFooter from "./SidebarFooter";
-import type { Conversation } from "./types";
 
-export default function ConversationList({ conversations, selectedId, onSelect, query, onQueryChange }: { conversations: Conversation[]; selectedId: number | null; onSelect: (id: number) => void; query: string; onQueryChange: (v: string) => void }) {
+import { MessageSquareText } from "lucide-react";
+
+export default function ConversationList({ conversations, selectedId, onSelect }: { conversations: Conversation[]; selectedId: number | null; onSelect: (id: number) => void }) {
     return (
         <Card className="flex min-h-0 flex-col rounded-2xl">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-xl">
                     <MessageSquareText className="h-5 w-5" /> Hộp thoại
                 </CardTitle>
-                <div className="mt-2">
-                    <SearchBox value={query} onChange={onQueryChange} />
-                </div>
+                <div className="mt-2">{/* <SearchBox value={query} onChange={onQueryChange} /> */}</div>
             </CardHeader>
             <Separator />
             <CardContent className="min-h-0 flex-1 p-0">
