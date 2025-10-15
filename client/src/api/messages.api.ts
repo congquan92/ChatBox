@@ -1,59 +1,89 @@
-export interface Message {
+export interface APIMessage {
     id: number;
     conversationId: number;
     senderId: number;
     content: string;
-    contentType: "text" | "image" | "file" | "system";
-    createdAt: string;
+    contentType: "text" | "image" | "file";
+    createdAt: string; // ISO
     editedAt: string | null;
-    sender: {
-        username: string;
-        displayName: string;
-        avatarUrl: string | null;
-    };
+    username: string;
+    displayName: string;
+    avatarUrl?: string | null;
 }
 
-export interface MessageResponse {
-    messages: Message[];
-    pagination: {
-        page: number;
-        limit: number;
-        total: number;
-        hasNext: boolean;
+export interface Message {
+    id: number;
+    content: string;
+    createdAt: string; // ISO
+    mine: boolean;
+    username: string;
+    displayName: string;
+    avatarUrl?: string;
+}
+
+export function normalizeMessage(m: APIMessage, currentUsername: string): Message {
+    return {
+        id: m.id,
+        content: m.content,
+        createdAt: m.createdAt,
+        mine: m.username === currentUsername,
+        username: m.username,
+        displayName: m.displayName,
+        avatarUrl: m.avatarUrl ?? undefined,
     };
 }
 
 // 6-API cho messages (6/6)
 
 // Lấy messages trong conversation với phân trang
-export async function getConversationMessages(conversationId: number, page: number = 1, limit: number = 50, before?: string): Promise<MessageResponse | null> {
-    try {
-        const params = new URLSearchParams({
-            page: page.toString(),
-            limit: limit.toString(),
-        });
+// export async function getConversationMessages(conversationId: number, page: number = 1, limit: number = 50, before?: string): Promise<APIMessage[] | null> {
+//     try {
+//         const params = new URLSearchParams({
+//             page: page.toString(),
+//             limit: limit.toString(),
+//         });
 
-        if (before) {
-            params.append("before", before);
-        }
+//         if (before) {
+//             params.append("before", before);
+//         }
 
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/messages/conversation/${conversationId}?${params}`, {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-            },
-        });
+//         const response = await fetch(`${import.meta.env.VITE_API_URL}/messages/conversation/${conversationId}?${params}`, {
+//             method: "GET",
+//             headers: {
+//                 "Content-Type": "application/json",
+//                 Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+//             },
+//         });
 
-        if (response.ok) {
-            const data = await response.json();
-            return data as MessageResponse;
-        }
-        return null;
-    } catch (error) {
-        console.error("Error fetching messages:", error);
-        return null;
+//         if (response.ok) {
+//             const data = await response.json();
+//             return data as APIMessage[];
+//         }
+//         return null;
+//     } catch (error) {
+//         console.error("Error fetching messages:", error);
+//         return null;
+//     }
+// }
+
+export async function getConversationMessages(conversationId: number, page: number = 1, limit: number = 50, before?: string): Promise<APIMessage[]> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (before) params.append("before", before);
+
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/messages/conversation/${conversationId}?${params}`, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
     }
+    const data = await res.json();
+    // ⬅️ server trả { messages: [...] }
+    return (data?.messages ?? []) as APIMessage[];
 }
 
 // Gửi tin nhắn (REST API backup, chủ yếu dùng socket)
