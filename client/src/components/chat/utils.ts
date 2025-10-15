@@ -6,3 +6,7 @@ export function formatTimeISO(iso?: string | null) {
     const isToday = d.toDateString() === now.toDateString();
     return isToday ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString();
 }
+export function formatTimeChat(iso: string) {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+}

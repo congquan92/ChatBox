@@ -4,7 +4,7 @@ import { getConversationMessages } from "@/api/messages.api";
 import { normalizeMessage, type Message, type APIMessage } from "@/api/messages.api"; // nếu normalize ở file khác thì import đúng path
 import ChatHeader from "@/components/chat/chat-header";
 import Composer from "@/components/chat/composer";
-import ConversationList from "@/components/chat/conversion/conversation-list";
+import ConversationList from "@/components/chat/conversation-list";
 import MessageList from "@/components/chat/message-list";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator"; // ⬅️ dùng shadcn
@@ -60,6 +60,7 @@ export default function MainChat() {
     }, [selected, user?.userName]);
 
     const handleSend = async () => {
+        console.log("Gửi tin nhắn:", text);
         // if (!text.trim() || !selected || !currentUser?.username) return;
         // // TODO: gọi sendMessage + socket
         // // Optimistic update (tạm thời cho mượt)

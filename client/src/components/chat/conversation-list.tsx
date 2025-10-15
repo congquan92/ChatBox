@@ -1,5 +1,5 @@
 import type { Conversation } from "@/api/conversations.api";
-import ConversationItem from "@/components/chat/conversion/conversation-item";
+import ConversationItem from "@/components/chat/conversation-item";
 import SidebarFooter from "@/components/chat/sider-footer";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
