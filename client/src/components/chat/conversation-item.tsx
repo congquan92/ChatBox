@@ -4,9 +4,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hook/useAuth";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 
 export default function ConversationItem({ c, active, onClick }: { c: Conversation; active: boolean; onClick: () => void }) {
     const { user } = useAuth();
+    useEffect(() => {});
+
     return (
         <li>
             <button onClick={onClick} className={cn("flex w-full items-center gap-3 p-3 text-left transition", active ? "bg-accent/40" : "hover:bg-accent/20")}>

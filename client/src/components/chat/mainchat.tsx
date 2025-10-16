@@ -3,21 +3,22 @@ import { getUserConversations, type Conversation } from "@/api/conversations.api
 import { getConversationMessages } from "@/api/messages.api";
 import { normalizeMessage, type Message, type APIMessage } from "@/api/messages.api"; // nếu normalize ở file khác thì import đúng path
 import ChatHeader from "@/components/chat/chat-header";
-import Composer from "@/components/chat/composer";
 import ConversationList from "@/components/chat/conversation-list";
 import MessageList from "@/components/chat/message-list";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator"; // ⬅️ dùng shadcn
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hook/useAuth";
 import { Loader2 } from "lucide-react";
+import Composer from "@/components/chat/Composer";
+import { useSocket } from "@/hook/useSocket";
 
 export default function MainChat() {
-    const { user } = useAuth(); // ⬅️ cần username ở đây
+    const { user } = useAuth();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const [text, setText] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
+    const { socket } = useSocket();
 
     // load list conversations
     useEffect(() => {
@@ -57,25 +58,8 @@ export default function MainChat() {
                 setLoading(false);
             }
         })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected, user?.userName]);
-
-    const handleSend = async () => {
-        console.log("Gửi tin nhắn:", text);
-        // if (!text.trim() || !selected || !currentUser?.username) return;
-        // // TODO: gọi sendMessage + socket
-        // // Optimistic update (tạm thời cho mượt)
-        // const optimistic: Message = {
-        //     id: Date.now(),
-        //     content: text.trim(),
-        //     createdAt: new Date().toISOString(),
-        //     mine: true,
-        //     username: currentUser.username,
-        //     displayName: currentUser.displayName || currentUser.username,
-        //     avatarUrl: currentUser.avatarUrl,
-        // };
-        // setMessages((prev) => [...prev, optimistic]);
-        // setText("");
-    };
 
     if (loading) {
         return (
@@ -95,9 +79,7 @@ export default function MainChat() {
                 <ChatHeader selected={selected} />
                 <Separator />
                 {/* Có thể truyền loading để show skeleton nếu bạn muốn */}
-                <MessageList messages={messages} />
-                <Separator />
-                <Composer text={text} setText={setText} canSend={!!selected} onSend={handleSend} />
+                <MessageList messages={messages} selected={selected} />
             </Card>
         </div>
     );
