@@ -1,31 +1,32 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { getUserConversations, type Conversation } from "@/api/conversations.api";
 import { getConversationMessages } from "@/api/messages.api";
-import { normalizeMessage, type Message, type APIMessage } from "@/api/messages.api"; // nếu normalize ở file khác thì import đúng path
+import { normalizeMessage, type Message, type APIMessage } from "@/api/messages.api";
 import ChatHeader from "@/components/chat/chat-header";
-import Composer from "@/components/chat/composer";
 import ConversationList from "@/components/chat/conversation-list";
 import MessageList from "@/components/chat/message-list";
 import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator"; // ⬅️ dùng shadcn
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hook/useAuth";
 import { Loader2 } from "lucide-react";
+import Composer from "@/components/chat/Composer";
+import { useSocket } from "@/hook/useSocket";
 
 export default function MainChat() {
-    const { user } = useAuth(); // ⬅️ cần username ở đây
+    const { user } = useAuth();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [text, setText] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
+    const { sendMessage, joinConversation, startTyping, stopTyping } = useSocket();
 
-    // load list conversations
+    // Load conversations
     useEffect(() => {
         (async () => {
             try {
                 const data = await getUserConversations();
                 setConversations(data || []);
-                // chọn cuộc trò chuyện đầu tiên nếu chưa chọn
                 if (!selectedId && data?.length) setSelectedId(data[0].id);
             } catch (e) {
                 console.error(e);
@@ -36,7 +37,7 @@ export default function MainChat() {
 
     const selected = useMemo(() => conversations.find((c) => c.id === selectedId) || null, [conversations, selectedId]);
 
-    // load messages khi đổi selectedId
+    // Load messages khi đổi conversation
     useEffect(() => {
         (async () => {
             if (!selected || !user?.userName) {
@@ -47,9 +48,13 @@ export default function MainChat() {
                 setLoading(true);
                 const apiItems: APIMessage[] = await getConversationMessages(selected.id, 1, 50);
                 const normalized = apiItems.map((m) => normalizeMessage(m, user.userName));
-                // sort tăng dần theo thời gian (nếu backend trả ngược)
                 normalized.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                 setMessages(normalized);
+
+                // Join conversation room qua socket
+                if (selected.id) {
+                    joinConversation(selected.id);
+                }
             } catch (e) {
                 console.error("load messages error:", e);
                 setMessages([]);
@@ -57,24 +62,106 @@ export default function MainChat() {
                 setLoading(false);
             }
         })();
-    }, [selected, user?.userName]);
+    }, [selected, user?.userName, joinConversation]);
+
+    // Socket: Lắng nghe new_message
+    useEffect(() => {
+        const handleNewMessage = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            if (!user?.userName) return;
+
+            // Chỉ thêm message nếu thuộc conversation đang chọn
+            if (detail.conversationId === selectedId) {
+                const newMsg: Message = {
+                    id: detail.id,
+                    content: detail.content,
+                    createdAt: detail.createdAt,
+                    mine: detail.sender.username === user.userName,
+                    username: detail.sender.username,
+                    displayName: detail.sender.displayName,
+                    avatarUrl: detail.sender.avatarUrl,
+                };
+                setMessages((prev) => [...prev, newMsg]);
+            }
+
+            // Update last message trong conversation list
+            setConversations((prev) =>
+                prev.map((conv) =>
+                    conv.id === detail.conversationId
+                        ? {
+                              ...conv,
+                              lastMessage: detail.content,
+                              lastMessageTime: detail.createdAt,
+                              lastMessageSender: detail.sender.username,
+                          }
+                        : conv
+                )
+            );
+        };
+
+        const handleMessageEdited = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            setMessages((prev) => prev.map((msg) => (msg.id === detail.messageId ? { ...msg, content: detail.content } : msg)));
+        };
+
+        const handleMessageDeleted = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            setMessages((prev) => prev.filter((msg) => msg.id !== detail.messageId));
+        };
+
+        window.addEventListener("socket:new_message", handleNewMessage);
+        window.addEventListener("socket:message_edited", handleMessageEdited);
+        window.addEventListener("socket:message_deleted", handleMessageDeleted);
+
+        return () => {
+            window.removeEventListener("socket:new_message", handleNewMessage);
+            window.removeEventListener("socket:message_edited", handleMessageEdited);
+            window.removeEventListener("socket:message_deleted", handleMessageDeleted);
+        };
+    }, [selectedId, user?.userName]);
+
+    // Typing indicators
+    const [isTyping, setIsTyping] = useState(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    const handleTextChange = useCallback(
+        (value: string) => {
+            setText(value);
+
+            if (!selected) return;
+
+            if (value.trim() && !isTyping) {
+                setIsTyping(true);
+                startTyping(selected.id);
+            }
+
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+
+            typingTimeoutRef.current = setTimeout(() => {
+                if (isTyping) {
+                    setIsTyping(false);
+                    stopTyping(selected.id);
+                }
+            }, 1000);
+        },
+        [selected, isTyping, startTyping, stopTyping]
+    );
 
     const handleSend = async () => {
-        console.log("Gửi tin nhắn:", text);
-        // if (!text.trim() || !selected || !currentUser?.username) return;
-        // // TODO: gọi sendMessage + socket
-        // // Optimistic update (tạm thời cho mượt)
-        // const optimistic: Message = {
-        //     id: Date.now(),
-        //     content: text.trim(),
-        //     createdAt: new Date().toISOString(),
-        //     mine: true,
-        //     username: currentUser.username,
-        //     displayName: currentUser.displayName || currentUser.username,
-        //     avatarUrl: currentUser.avatarUrl,
-        // };
-        // setMessages((prev) => [...prev, optimistic]);
-        // setText("");
+        if (!text.trim() || !selected || !user?.userName) return;
+
+        sendMessage({ conversationId: selected.id, content: text.trim() });
+        setText("");
+
+        if (isTyping) {
+            setIsTyping(false);
+            stopTyping(selected.id);
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        }
     };
 
     if (loading) {
@@ -87,17 +174,14 @@ export default function MainChat() {
 
     return (
         <div className="grid h-[calc(100vh-10rem)] w-full gap-4 p-2 md:p-4 lg:grid-cols-[360px_1fr]">
-            {/* LEFT */}
             <ConversationList conversations={conversations} selectedId={selectedId} onSelect={(id) => setSelectedId(id)} />
 
-            {/* RIGHT */}
             <Card className="flex min-h-0 flex-col rounded-2xl">
                 <ChatHeader selected={selected} />
                 <Separator />
-                {/* Có thể truyền loading để show skeleton nếu bạn muốn */}
                 <MessageList messages={messages} />
                 <Separator />
-                <Composer text={text} setText={setText} canSend={!!selected} onSend={handleSend} />
+                <Composer text={text} setText={handleTextChange} canSend={!!selected} onSend={handleSend} />
             </Card>
         </div>
     );

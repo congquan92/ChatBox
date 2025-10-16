@@ -1,379 +1,316 @@
-import { createContext, useEffect, useState, type ReactNode } from "react";
+// src/context/SocketContext.tsx
+import { createContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/hook/useAuth";
 
-interface User {
+// ====== Types ======
+export interface OnlineUser {
     id: number;
     username: string;
     displayName: string;
     avatarUrl?: string;
 }
 
-interface Message {
-    id: number;
+export interface OutgoingMessagePayload {
     conversationId: number;
-    senderId: number;
     content: string;
-    contentType: "text" | "image" | "file" | "system";
-    createdAt: string;
-    editedAt?: string;
-    sender: {
-        username: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
+    contentType?: "text" | "image" | "file" | "emoji";
 }
 
-interface Conversation {
-    id: number;
+export interface EditMessagePayload {
+    messageId: number;
+    content: string;
+}
+
+export interface DeleteMessagePayload {
+    messageId: number;
+}
+
+export interface ReadMessagePayload {
+    messageId: number;
+}
+
+export interface CreateConversationPayload {
     type: "direct" | "group";
-    title?: string;
-    avatarUrl?: string;
-    coverGifUrl?: string;
-    label?: string;
-    createdAt: string;
-    creator: {
-        id: number;
-        username: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
-}
-
-interface TypingUser {
-    userId: number;
-    username: string;
-    displayName: string;
-    conversationId: number;
-}
-
-interface CreateConversationData {
-    type: "direct" | "group";
-    title?: string;
+    title?: string | null;
     memberIds: number[];
-    avatarUrl?: string;
-    coverGifUrl?: string;
-    label?: string;
-}
-
-interface MessageEditedData {
-    messageId: number;
-    content: string;
-    editedAt: string;
-    editedBy: {
-        id: number;
-        username: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
-}
-
-interface MessageDeletedData {
-    messageId: number;
-    deletedBy: {
-        id: number;
-        username: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
-    deletedAt: string;
-}
-
-interface MessageReadData {
-    messageId: number;
-    readBy: {
-        userId: number;
-        username: string;
-        displayName: string;
-        avatarUrl?: string;
-    };
-    timestamp: string;
+    avatarUrl?: string | null;
+    coverGifUrl?: string | null;
+    label?: "Chill" | "Work" | "Gaming" | "Study" | "Team" | "Family" | "Custom";
 }
 
 interface SocketContextType {
     socket: Socket | null;
     connected: boolean;
-    onlineUsers: User[];
-    typingUsers: TypingUser[];
-    // Message events
-    sendMessage: (conversationId: number, content: string, contentType?: string) => void;
-    editMessage: (messageId: number, content: string) => void;
-    deleteMessage: (messageId: number) => void;
-    markMessageAsRead: (messageId: number) => void;
-    // Conversation events
-    createConversation: (data: CreateConversationData) => void;
+    onlineUsers: OnlineUser[];
+    // Rooms
     joinConversation: (conversationId: number) => void;
     leaveConversation: (conversationId: number) => void;
-    // Typing events
+    // Conversations
+    createConversation: (payload: CreateConversationPayload) => void;
+    // Messages
+    sendMessage: (payload: OutgoingMessagePayload) => void;
+    editMessage: (payload: EditMessagePayload) => void;
+    deleteMessage: (payload: DeleteMessagePayload) => void;
+    markMessageRead: (payload: ReadMessagePayload) => void;
+    // Typing
     startTyping: (conversationId: number) => void;
     stopTyping: (conversationId: number) => void;
-    // Event listeners
-    onNewMessage: (callback: (message: Message) => void) => void;
-    onMessageEdited: (callback: (data: MessageEditedData) => void) => void;
-    onMessageDeleted: (callback: (data: MessageDeletedData) => void) => void;
-    onMessageRead: (callback: (data: MessageReadData) => void) => void;
-    onConversationCreated: (callback: (conversation: Conversation) => void) => void;
-    onUserTyping: (callback: (user: TypingUser) => void) => void;
-    onUserStopTyping: (callback: (user: TypingUser) => void) => void;
+    // Utils
+    refreshOnlineUsers: () => void;
+    // Ephemeral states to render UI
+    typingUsersByConversation: Record<number, Record<number, { userId: number; username: string; displayName: string }>>;
 }
 
 const SocketContext = createContext<SocketContextType | undefined>(undefined);
-
 export { SocketContext };
 
 export function SocketProvider({ children }: { children: ReactNode }) {
+    const { user, isAuthenticated } = useAuth();
     const [socket, setSocket] = useState<Socket | null>(null);
     const [connected, setConnected] = useState(false);
-    const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
-    const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
-    const { user, isAuthenticated } = useAuth();
+    const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+    const typingUsersRef = useRef<SocketContextType["typingUsersByConversation"]>({});
+    const [typingUsersByConversation, setTypingUsersByConversation] = useState(typingUsersRef.current);
 
-    // Event listeners storage
-    const eventListeners = {
-        newMessage: [] as Array<(message: Message) => void>,
-        messageEdited: [] as Array<(data: MessageEditedData) => void>,
-        messageDeleted: [] as Array<(data: MessageDeletedData) => void>,
-        messageRead: [] as Array<(data: MessageReadData) => void>,
-        conversationCreated: [] as Array<(conversation: Conversation) => void>,
-        userTyping: [] as Array<(user: TypingUser) => void>,
-        userStopTyping: [] as Array<(user: TypingUser) => void>,
-    };
+    // keep a stable token getter (phòng khi bạn rotate token)
+    const tokenRef = useRef<string | null>(null);
+    useEffect(() => {
+        tokenRef.current = localStorage.getItem("token");
+    }, [isAuthenticated]);
 
-    // Socket event functions
-    const sendMessage = (conversationId: number, content: string, contentType: string = "text") => {
-        if (socket) {
-            socket.emit("send_message", { conversationId, content, contentType });
+    useEffect(() => {
+        if (!isAuthenticated || !user) {
+            // logout / guest => clean
+            if (socket) socket.disconnect();
+            setSocket(null);
+            setConnected(false);
+            setOnlineUsers([]);
+            typingUsersRef.current = {};
+            setTypingUsersByConversation({});
+            return;
         }
-    };
 
-    const editMessage = (messageId: number, content: string) => {
-        if (socket) {
-            socket.emit("edit_message", { messageId, content });
-        }
-    };
+        // Nếu đã có kết nối cũ thì ngắt trước khi tạo mới
+        if (socket) socket.disconnect();
 
-    const deleteMessage = (messageId: number) => {
-        if (socket) {
-            socket.emit("delete_message", { messageId });
-        }
-    };
+        const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
+            auth: { token: tokenRef.current || "" },
+            autoConnect: true,
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 500,
+            timeout: 15000,
+            transports: ["websocket"], // ép WS cho mượt (tùy hạ tầng)
+        });
 
-    const markMessageAsRead = (messageId: number) => {
-        if (socket) {
-            socket.emit("mark_message_read", { messageId });
-        }
-    };
+        // ---- Core lifecycle
+        const onConnect = () => {
+            console.log("[socket] connected:", newSocket.id);
+            setConnected(true);
+            // xin danh sách online
+            newSocket.emit("get_online_users");
+        };
 
-    const createConversation = (data: CreateConversationData) => {
-        if (socket) {
-            socket.emit("create_conversation", data);
-        }
-    };
+        const onDisconnect = (reason: string) => {
+            console.log("[socket] disconnected:", reason);
+            setConnected(false);
+            // clear typing ephemeral (tránh kẹt UI)
+            typingUsersRef.current = {};
+            setTypingUsersByConversation({});
+        };
 
+        const onError = (err: any) => {
+            console.error("[socket] error:", err);
+        };
+
+        // ---- Online users
+        const onOnlineUsers = (users: OnlineUser[]) => {
+            setOnlineUsers(users);
+        };
+
+        const onUserOnline = (userData: any) => {
+            setOnlineUsers((prev) => {
+                if (prev.some((u) => u.id === userData.userId)) return prev;
+                return [
+                    ...prev,
+                    {
+                        id: userData.userId,
+                        username: userData.username,
+                        displayName: userData.displayName,
+                        avatarUrl: userData.avatarUrl,
+                    },
+                ];
+            });
+        };
+
+        const onUserOffline = (userData: any) => {
+            setOnlineUsers((prev) => prev.filter((u) => u.id !== userData.userId));
+        };
+
+        // ---- Conversation events (server emit)
+        const onJoinedConversation = (data: { user: any; conversations: Array<{ id: number }> }) => {
+            // Bạn có thể cache danh sách conv ở đây nếu muốn.
+            // console.log("[socket] joined_conversation", data);
+        };
+
+        const onConversationCreated = (payload: any) => {
+            // payload: { conversation, creator }
+            console.log("[socket] conversation_created:", payload);
+            // optional: toast, hoặc trigger refetch list conv
+        };
+
+        // ---- Message events (server emit)
+        const onNewMessage = (messageData: any) => {
+            // gợi ý: phát custom event để những component khác lắng nghe
+            window.dispatchEvent(new CustomEvent("socket:new_message", { detail: messageData }));
+        };
+
+        const onMessageEdited = (data: any) => {
+            window.dispatchEvent(new CustomEvent("socket:message_edited", { detail: data }));
+        };
+
+        const onMessageDeleted = (data: any) => {
+            window.dispatchEvent(new CustomEvent("socket:message_deleted", { detail: data }));
+        };
+
+        const onMessageRead = (data: any) => {
+            window.dispatchEvent(new CustomEvent("socket:message_read", { detail: data }));
+        };
+
+        // ---- Typing events (server emit)
+        const onUserTyping = (data: { userId: number; username: string; displayName: string; conversationId: number }) => {
+            const { conversationId, userId } = data;
+            const byConv = typingUsersRef.current[conversationId] || {};
+            byConv[userId] = { userId, username: data.username, displayName: data.displayName };
+            typingUsersRef.current = { ...typingUsersRef.current, [conversationId]: { ...byConv } };
+            setTypingUsersByConversation({ ...typingUsersRef.current });
+        };
+
+        const onUserStopTyping = (data: { userId: number; conversationId: number }) => {
+            const { conversationId, userId } = data;
+            const byConv = { ...(typingUsersRef.current[conversationId] || {}) };
+            delete byConv[userId];
+            typingUsersRef.current = { ...typingUsersRef.current, [conversationId]: byConv };
+            setTypingUsersByConversation({ ...typingUsersRef.current });
+        };
+
+        // ---- Bind listeners
+        newSocket.on("connect", onConnect);
+        newSocket.on("disconnect", onDisconnect);
+        newSocket.on("error", onError);
+
+        newSocket.on("online_users", onOnlineUsers);
+        newSocket.on("user_online", onUserOnline);
+        newSocket.on("user_offline", onUserOffline);
+
+        newSocket.on("joined_conversation", onJoinedConversation);
+        newSocket.on("conversation_created", onConversationCreated);
+
+        newSocket.on("new_message", onNewMessage);
+        newSocket.on("message_edited", onMessageEdited);
+        newSocket.on("message_deleted", onMessageDeleted);
+        newSocket.on("message_read", onMessageRead);
+
+        newSocket.on("user_typing", onUserTyping);
+        newSocket.on("user_stop_typing", onUserStopTyping);
+
+        // ---- Mount
+        setSocket(newSocket);
+
+        // ---- Cleanup
+        return () => {
+            newSocket.off("connect", onConnect);
+            newSocket.off("disconnect", onDisconnect);
+            newSocket.off("error", onError);
+
+            newSocket.off("online_users", onOnlineUsers);
+            newSocket.off("user_online", onUserOnline);
+            newSocket.off("user_offline", onUserOffline);
+
+            newSocket.off("joined_conversation", onJoinedConversation);
+            newSocket.off("conversation_created", onConversationCreated);
+
+            newSocket.off("new_message", onNewMessage);
+            newSocket.off("message_edited", onMessageEdited);
+            newSocket.off("message_deleted", onMessageDeleted);
+            newSocket.off("message_read", onMessageRead);
+
+            newSocket.off("user_typing", onUserTyping);
+            newSocket.off("user_stop_typing", onUserStopTyping);
+
+            newSocket.disconnect();
+            setSocket(null);
+            setConnected(false);
+            setOnlineUsers([]);
+            typingUsersRef.current = {};
+            setTypingUsersByConversation({});
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, user]);
+
+    // ====== Emit helpers (khớp server) ======
     const joinConversation = (conversationId: number) => {
-        if (socket) {
-            socket.emit("join_conversation", { conversationId });
-        }
+        socket?.emit("join_conversation", { conversationId });
     };
 
     const leaveConversation = (conversationId: number) => {
-        if (socket) {
-            socket.emit("leave_conversation", { conversationId });
-        }
+        socket?.emit("leave_conversation", { conversationId });
+    };
+
+    const createConversation = (payload: CreateConversationPayload) => {
+        socket?.emit("create_conversation", payload);
+    };
+
+    const sendMessage = (payload: OutgoingMessagePayload) => {
+        // server requires: conversationId + content (+ contentType)
+        socket?.emit("send_message", payload);
+    };
+
+    const editMessage = (payload: EditMessagePayload) => {
+        socket?.emit("edit_message", payload);
+    };
+
+    const deleteMessage = (payload: DeleteMessagePayload) => {
+        socket?.emit("delete_message", payload);
+    };
+
+    const markMessageRead = (payload: ReadMessagePayload) => {
+        socket?.emit("mark_message_read", payload);
     };
 
     const startTyping = (conversationId: number) => {
-        if (socket) {
-            socket.emit("typing_start", { conversationId });
-        }
+        socket?.emit("typing_start", { conversationId });
     };
 
     const stopTyping = (conversationId: number) => {
-        if (socket) {
-            socket.emit("typing_stop", { conversationId });
-        }
+        socket?.emit("typing_stop", { conversationId });
     };
 
-    // Event listener registration functions
-    const onNewMessage = (callback: (message: Message) => void) => {
-        eventListeners.newMessage.push(callback);
+    const refreshOnlineUsers = () => {
+        socket?.emit("get_online_users");
     };
 
-    const onMessageEdited = (callback: (data: MessageEditedData) => void) => {
-        eventListeners.messageEdited.push(callback);
-    };
-
-    const onMessageDeleted = (callback: (data: MessageDeletedData) => void) => {
-        eventListeners.messageDeleted.push(callback);
-    };
-
-    const onMessageRead = (callback: (data: MessageReadData) => void) => {
-        eventListeners.messageRead.push(callback);
-    };
-
-    const onConversationCreated = (callback: (conversation: Conversation) => void) => {
-        eventListeners.conversationCreated.push(callback);
-    };
-
-    const onUserTyping = (callback: (user: TypingUser) => void) => {
-        eventListeners.userTyping.push(callback);
-    };
-
-    const onUserStopTyping = (callback: (user: TypingUser) => void) => {
-        eventListeners.userStopTyping.push(callback);
-    };
-
-    useEffect(() => {
-        if (isAuthenticated && user) {
-            // Ngắt kết nối cũ nếu có
-            if (socket) {
-                socket.disconnect();
-            }
-
-            // Tạo kết nối socket với token authentication
-            const newSocket = io(import.meta.env.VITE_SOCKET_URL, {
-                auth: { token: localStorage.getItem("token") || "" },
-                autoConnect: true,
-                reconnection: true,
-                reconnectionAttempts: 10,
-                reconnectionDelay: 500,
-            });
-
-            // Basic connection events
-            newSocket.on("connect", () => {
-                console.log("Socket connected:", newSocket.id);
-                setConnected(true);
-                newSocket.emit("get_online_users");
-            });
-
-            newSocket.on("disconnect", () => {
-                console.log("Socket disconnected");
-                setConnected(false);
-            });
-
-            // Online users events
-            newSocket.on("online_users", (users: User[]) => {
-                console.log("Online users:", users);
-                setOnlineUsers(users);
-            });
-
-            newSocket.on("user_online", (userData: { userId: number; username: string; displayName: string; avatarUrl?: string }) => {
-                setOnlineUsers((prev) => {
-                    const exists = prev.find((u) => u.id === userData.userId);
-                    if (!exists) {
-                        return [
-                            ...prev,
-                            {
-                                id: userData.userId,
-                                username: userData.username,
-                                displayName: userData.displayName,
-                                avatarUrl: userData.avatarUrl,
-                            },
-                        ];
-                    }
-                    return prev;
-                });
-            });
-
-            newSocket.on("user_offline", (userData: { userId: number; username: string }) => {
-                setOnlineUsers((prev) => prev.filter((u) => u.id !== userData.userId));
-            });
-
-            // Message events
-            newSocket.on("new_message", (message: Message) => {
-                eventListeners.newMessage.forEach((callback) => callback(message));
-            });
-
-            newSocket.on("message_edited", (data: MessageEditedData) => {
-                eventListeners.messageEdited.forEach((callback) => callback(data));
-            });
-
-            newSocket.on("message_deleted", (data: MessageDeletedData) => {
-                eventListeners.messageDeleted.forEach((callback) => callback(data));
-            });
-
-            newSocket.on("message_read", (data: MessageReadData) => {
-                eventListeners.messageRead.forEach((callback) => callback(data));
-            });
-
-            // Conversation events
-            newSocket.on("conversation_created", (conversation: Conversation) => {
-                console.log("New conversation created:", conversation);
-                eventListeners.conversationCreated.forEach((callback) => callback(conversation));
-            });
-
-            newSocket.on("joined_conversation", (data: unknown) => {
-                console.log("Joined conversations:", data);
-            });
-
-            // Typing events
-            newSocket.on("user_typing", (user: TypingUser) => {
-                setTypingUsers((prev) => {
-                    const exists = prev.find((u) => u.userId === user.userId && u.conversationId === user.conversationId);
-                    if (!exists) {
-                        return [...prev, user];
-                    }
-                    return prev;
-                });
-                eventListeners.userTyping.forEach((callback) => callback(user));
-            });
-
-            newSocket.on("user_stop_typing", (user: TypingUser) => {
-                setTypingUsers((prev) => prev.filter((u) => !(u.userId === user.userId && u.conversationId === user.conversationId)));
-                eventListeners.userStopTyping.forEach((callback) => callback(user));
-            });
-
-            newSocket.on("error", (error: unknown) => {
-                console.error("Socket error:", error);
-            });
-
-            setSocket(newSocket);
-
-            return () => {
-                newSocket.disconnect();
-                setSocket(null);
-                setConnected(false);
-                setOnlineUsers([]);
-                setTypingUsers([]);
-            };
-        } else {
-            // Ngắt kết nối nếu không authenticated
-            if (socket) {
-                socket.disconnect();
-                setSocket(null);
-                setConnected(false);
-                setOnlineUsers([]);
-                setTypingUsers([]);
-            }
-        }
-    }, [isAuthenticated, user]);
-
-    const value = {
-        socket,
-        connected,
-        onlineUsers,
-        typingUsers,
-        // Message functions
-        sendMessage,
-        editMessage,
-        deleteMessage,
-        markMessageAsRead,
-        // Conversation functions
-        createConversation,
-        joinConversation,
-        leaveConversation,
-        // Typing functions
-        startTyping,
-        stopTyping,
-        // Event listeners
-        onNewMessage,
-        onMessageEdited,
-        onMessageDeleted,
-        onMessageRead,
-        onConversationCreated,
-        onUserTyping,
-        onUserStopTyping,
-    };
+    const value: SocketContextType = useMemo(
+        () => ({
+            socket,
+            connected,
+            onlineUsers,
+            joinConversation,
+            leaveConversation,
+            createConversation,
+            sendMessage,
+            editMessage,
+            deleteMessage,
+            markMessageRead,
+            startTyping,
+            stopTyping,
+            refreshOnlineUsers,
+            typingUsersByConversation,
+        }),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [socket, connected, onlineUsers, typingUsersByConversation]
+    );
 
     return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 }

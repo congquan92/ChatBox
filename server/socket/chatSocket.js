@@ -10,15 +10,21 @@ const userSockets = new Map(); // socketId -> userId
 // Khởi tạo Socket.IO server
 function initializeSocket(server) {
     const io = new Server(server, {
-        cors: { origin: "*", methods: ["GET", "POST"], credentials: true }, // Cấu hình CORS nếu cần
+        cors: {
+            origin: process.env.CLIENT_URL || "*",
+            methods: ["GET", "POST"],
+            credentials: true,
+        },
+        pingTimeout: 60000,
+        pingInterval: 25000,
     });
 
     // Middleware xác thực người dùng khi kết nối
     io.use(socketAuth);
 
     io.on("connection", async (socket) => {
-        const user = socket.user; // Lấy thông tin user từ middleware xác thực
-        console.log(`user ${user.username} connected with socket ${socket.id}`);
+        const user = socket.user;
+        console.log(`✓ User ${user.username} (ID: ${user.id}) connected [Socket: ${socket.id}]`);
 
         // Lưu thông tin user online
         onlineUsers.set(user.id, {
@@ -63,41 +69,63 @@ function initializeSocket(server) {
 
                 // Join tất cả members vào room mới
                 const allMemberIds = [user.id, ...memberIds];
+                const conversationData = {
+                    conversation: result,
+                    creator: {
+                        id: user.id,
+                        username: user.username,
+                        displayName: user.displayName,
+                        avatarUrl: user.avatarUrl,
+                    },
+                };
+
                 allMemberIds.forEach((memberId) => {
                     const memberSocket = onlineUsers.get(memberId);
                     if (memberSocket) {
-                        io.to(memberSocket.socketId).join(`conversation_${result.id}`);
-                        io.to(memberSocket.socketId).emit("conversation_created", {
-                            conversation: result,
-                            creator: {
-                                id: user.id,
-                                username: user.username,
-                                displayName: user.displayName,
-                                avatarUrl: user.avatarUrl,
-                            },
-                        });
+                        io.sockets.sockets.get(memberSocket.socketId)?.join(`conversation_${result.id}`);
+                        io.to(memberSocket.socketId).emit("conversation_created", conversationData);
                     }
                 });
 
-                console.log(`Conversation ${result.id} created by ${user.username}`);
+                console.log(`  → Conversation ${result.id} created by ${user.username}`);
             } catch (error) {
                 console.error("Error creating conversation:", error);
-                socket.emit("error", { message: "Failed to create conversation" });
+                socket.emit("error", { message: "Failed to create conversation", error: error.message });
             }
         });
 
         // Join conversation room
-        socket.on("join_conversation", (data) => {
+        socket.on("join_conversation", async (data) => {
             const { conversationId } = data;
-            socket.join(`conversation_${conversationId}`);
-            console.log(`User ${user.username} joined conversation ${conversationId}`);
+            if (!conversationId) {
+                socket.emit("error", { message: "conversationId is required" });
+                return;
+            }
+
+            try {
+                // Kiểm tra user có quyền join không
+                const isMember = await conversationModel.getConversationById(conversationId, user.id);
+                if (isMember) {
+                    socket.join(`conversation_${conversationId}`);
+                    console.log(`  → User ${user.username} joined conversation ${conversationId}`);
+                } else {
+                    socket.emit("error", { message: "You are not a member of this conversation" });
+                }
+            } catch (error) {
+                console.error("Error joining conversation:", error);
+                socket.emit("error", { message: "Failed to join conversation" });
+            }
         });
 
         // Leave conversation room
         socket.on("leave_conversation", (data) => {
             const { conversationId } = data;
+            if (!conversationId) {
+                socket.emit("error", { message: "conversationId is required" });
+                return;
+            }
             socket.leave(`conversation_${conversationId}`);
-            console.log(`User ${user.username} left conversation ${conversationId}`);
+            console.log(`  → User ${user.username} left conversation ${conversationId}`);
         });
 
         // === MESSAGE EVENTS ===
@@ -135,15 +163,13 @@ function initializeSocket(server) {
                     },
                 };
 
-                //emit là gửi tin nhắn đến tất cả user trong room nên ta giới hạn phạm vi bằng .to("tên_phòng")
-
                 // Broadcast tin nhắn cho tất cả user trong conversation
-                io.to(`conversation_${conversationId}`).emit("new_message", messageData); // Gửi tin nhắn đến tất cả user trong coversation_123
+                io.to(`conversation_${conversationId}`).emit("new_message", messageData);
 
-                console.log(`Message sent by ${user.username} in conversation ${conversationId}`);
+                console.log(`  → Message sent by ${user.username} in conversation ${conversationId}`);
             } catch (error) {
                 console.error("Error sending message:", error);
-                socket.emit("error", { message: "Failed to send message" });
+                socket.emit("error", { message: "Failed to send message", error: error.message });
             }
         });
 
@@ -152,14 +178,19 @@ function initializeSocket(server) {
             try {
                 const { messageId, content } = data;
 
+                if (!messageId || !content) {
+                    socket.emit("error", { message: "messageId and content are required" });
+                    return;
+                }
+
                 const result = await messageModel.editMessage(messageId, user.id, content);
 
                 if (result) {
                     const message = await messageModel.getMessageById(messageId, user.id);
                     if (message) {
-                        // Broadcast tin nhắn đã chỉnh sửa
                         io.to(`conversation_${message.conversationId}`).emit("message_edited", {
                             messageId,
+                            conversationId: message.conversationId,
                             content,
                             editedAt: new Date(),
                             editedBy: {
@@ -169,11 +200,14 @@ function initializeSocket(server) {
                                 avatarUrl: user.avatarUrl,
                             },
                         });
+                        console.log(`  → Message ${messageId} edited by ${user.username}`);
                     }
+                } else {
+                    socket.emit("error", { message: "Cannot edit this message" });
                 }
             } catch (error) {
                 console.error("Error editing message:", error);
-                socket.emit("error", { message: "Failed to edit message" });
+                socket.emit("error", { message: "Failed to edit message", error: error.message });
             }
         });
 
@@ -182,16 +216,20 @@ function initializeSocket(server) {
             try {
                 const { messageId } = data;
 
-                // Lấy thông tin message trước khi xóa
+                if (!messageId) {
+                    socket.emit("error", { message: "messageId is required" });
+                    return;
+                }
+
                 const message = await messageModel.getMessageById(messageId, user.id);
 
                 if (message) {
                     const result = await messageModel.deleteMessage(messageId, user.id);
 
                     if (result) {
-                        // Broadcast tin nhắn đã xóa
                         io.to(`conversation_${message.conversationId}`).emit("message_deleted", {
                             messageId,
+                            conversationId: message.conversationId,
                             deletedBy: {
                                 id: user.id,
                                 username: user.username,
@@ -200,11 +238,16 @@ function initializeSocket(server) {
                             },
                             deletedAt: new Date(),
                         });
+                        console.log(`  → Message ${messageId} deleted by ${user.username}`);
+                    } else {
+                        socket.emit("error", { message: "Cannot delete this message" });
                     }
+                } else {
+                    socket.emit("error", { message: "Message not found" });
                 }
             } catch (error) {
                 console.error("Error deleting message:", error);
-                socket.emit("error", { message: "Failed to delete message" });
+                socket.emit("error", { message: "Failed to delete message", error: error.message });
             }
         });
 
@@ -213,15 +256,20 @@ function initializeSocket(server) {
             try {
                 const { messageId } = data;
 
+                if (!messageId) {
+                    socket.emit("error", { message: "messageId is required" });
+                    return;
+                }
+
                 await messageModel.markMessageAsRead(messageId, user.id);
 
-                // Thông báo cho người gửi biết tin nhắn đã được đọc
                 const message = await messageModel.getMessageById(messageId, user.id);
                 if (message) {
                     const senderSocket = onlineUsers.get(message.senderId);
-                    if (senderSocket) {
+                    if (senderSocket && message.senderId !== user.id) {
                         io.to(senderSocket.socketId).emit("message_read", {
                             messageId,
+                            conversationId: message.conversationId,
                             readBy: {
                                 userId: user.id,
                                 username: user.username,
@@ -234,13 +282,17 @@ function initializeSocket(server) {
                 }
             } catch (error) {
                 console.error("Error marking message as read:", error);
-                socket.emit("error", { message: "Failed to mark message as read" });
+                socket.emit("error", { message: "Failed to mark message as read", error: error.message });
             }
         });
 
         // Người dùng đang gõ
         socket.on("typing_start", (data) => {
             const { conversationId } = data;
+            if (!conversationId) {
+                socket.emit("error", { message: "conversationId is required" });
+                return;
+            }
             socket.to(`conversation_${conversationId}`).emit("user_typing", {
                 userId: user.id,
                 username: user.username,
@@ -252,6 +304,10 @@ function initializeSocket(server) {
         // Người dùng ngừng gõ
         socket.on("typing_stop", (data) => {
             const { conversationId } = data;
+            if (!conversationId) {
+                socket.emit("error", { message: "conversationId is required" });
+                return;
+            }
             socket.to(`conversation_${conversationId}`).emit("user_stop_typing", {
                 userId: user.id,
                 username: user.username,
@@ -265,13 +321,13 @@ function initializeSocket(server) {
         // Lấy danh sách user online
         socket.on("get_online_users", () => {
             const onlineUserList = Array.from(onlineUsers.values()).map((item) => item.user);
-            console.log(` user yêu cầu danh sách online : ${user.username}:`, onlineUserList);
+            console.log(`  → ${user.username} requested online users list (${onlineUserList.length} users)`);
             socket.emit("online_users", onlineUserList);
         });
 
         // === DISCONNECT ===
-        socket.on("disconnect", () => {
-            console.log(`User ${user.username} disconnected`);
+        socket.on("disconnect", (reason) => {
+            console.log(`✗ User ${user.username} disconnected [Reason: ${reason}]`);
 
             // Xóa user khỏi danh sách online
             onlineUsers.delete(user.id);
@@ -305,11 +361,11 @@ async function joinUserConversations(socket, userId, user) {
         conversations.forEach((conversation) => {
             socket.join(`conversation_${conversation.id}`);
         });
-        console.log(`user ${user.username}(${user.id}) joined ${conversations.length} conversation rooms`);
+        console.log(`  → User ${user.username} joined ${conversations.length} conversation rooms`);
         return { user, conversations };
-        // console.log(conversations.map((c) => console.log(c)));
     } catch (error) {
-        console.error("Error joining user conversations:", error);
+        console.error("✗ Error joining user conversations:", error);
+        return { user, conversations: [] };
     }
 }
 

@@ -37,7 +37,9 @@ export default function MessageList({ messages, emptyText = "Hãy chọn một c
     const endRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
-        endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        if (messages.length > 0) {
+            endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+        }
     }, [messages]);
 
     return (

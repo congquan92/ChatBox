@@ -3,25 +3,28 @@ const db = require("../config/db");
 //Gửi tin nhắn
 async function sendMessage({ conversationId, senderId, content, contentType = "text" }) {
     try {
-        // Kiểm tra user có trong conversation không ( check xem đối tượng gửi nhắn là ai)
+        // Kiểm tra user có trong conversation không
         const [memberCheck] = await db.query("SELECT userId FROM conversation_members WHERE conversationId = ? AND userId = ?", [conversationId, senderId]);
-        console.log(memberCheck);
+
         if (memberCheck.length === 0) {
             throw new Error("Người dùng không thuộc cuộc trò chuyện này");
         }
+
         // Thêm tin nhắn vào bảng messages
         const [result] = await db.query("INSERT INTO messages (conversationId, senderId, content, contentType) VALUES (?, ?, ?, ?)", [conversationId, senderId, content, contentType]);
+
         return {
             id: result.insertId,
             conversationId,
             senderId,
             content,
             contentType,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString(),
             message: "Message sent successfully",
         };
     } catch (error) {
         console.error("Lỗi khi gửi tin nhắn (sendMessage):", error);
+        throw error;
     }
 }
 
