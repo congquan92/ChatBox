@@ -2,9 +2,10 @@ import { CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Paperclip, Send, Smile } from "lucide-react";
-import type { Conversation } from "@/components/chat/types";
+import type { Conversation, newMessage } from "@/components/chat/types";
 import { useEffect, useRef, useState } from "react";
 import { socket } from "@/lib/socket";
+import type { TypingUser } from "@/components/chat/typingIndicator";
 
 export default function Composer({ selected }: { selected: Conversation | null }) {
     const [text, setText] = useState("");
@@ -35,20 +36,20 @@ export default function Composer({ selected }: { selected: Conversation | null }
             }
         };
         // KHÔNG đưa `socket` vào deps (singleton). Dùng optional chaining cho selected.
-    }, [selected?.id]);
+    }, [selected]);
 
     // --- HANDLERS
-    const handleNewMessage = (msg: any) => {
+    const handleNewMessage = (msg: newMessage) => {
         // Bạn có thể nâng cấp: push vào state messages ở component cha thông qua prop/callback
         // Tạm thời log để xác nhận luồng
         console.log("new_message:", msg);
     };
 
-    const handleUserTyping = (payload: any) => {
+    const handleUserTyping = (payload: TypingUser) => {
         console.log("user_typing:", payload);
     };
 
-    const handleUserStopTyping = (payload: any) => {
+    const handleUserStopTyping = (payload: TypingUser) => {
         console.log("user_stop_typing:", payload);
     };
 
@@ -102,7 +103,7 @@ export default function Composer({ selected }: { selected: Conversation | null }
                 socket.emit("typing_stop", { conversationId: selected.id });
                 isTypingRef.current = false;
             }
-        }, 1200); // hết gõ 1.2s thì báo stop
+        }, 2200); // hết gõ 2.2s thì báo stop
     };
 
     return (

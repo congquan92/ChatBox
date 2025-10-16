@@ -9,5 +9,6 @@ export const socket = io(URL_SOCKET, {
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 500,
+    transports: ["websocket"],
     auth: { token: localStorage.getItem("token") }, // nếu dùng JWT
 });
