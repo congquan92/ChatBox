@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getUserConversations, type Conversation } from "@/api/conversations.api";
-import { getConversationMessages } from "@/api/messages.api";
-import { normalizeMessage, type Message, type APIMessage } from "@/api/messages.api"; // nếu normalize ở file khác thì import đúng path
+import { getConversationMessages, type APIMessage, normalizeMessage, type Message } from "@/api/messages.api";
 import ChatHeader from "@/components/chat/chat-header";
 import ConversationList from "@/components/chat/conversation-list";
 import MessageList from "@/components/chat/message-list";
@@ -17,47 +16,67 @@ export default function MainChat() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
 
-    // load list conversations
-    useEffect(() => {
-        (async () => {
-            try {
-                const data = await getUserConversations();
-                setConversations(data || []);
-                // chọn cuộc trò chuyện đầu tiên nếu chưa chọn
-                if (!selectedId && data?.length) setSelectedId(data[0].id);
-            } catch (e) {
-                console.error(e);
+    const loadConversations = useCallback(async () => {
+        setLoading(true);
+        try {
+            const response = await getUserConversations();
+            const list = response || [];
+            setConversations(response);
+
+            // Auto-select lần đầu
+            if (list.length > 0 && selectedId == null) {
+                setSelectedId(list[0].id);
             }
-        })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        } catch (error) {
+            console.error("Error loading conversations:", error);
+            setConversations([]);
+        } finally {
+            setLoading(false);
+        }
+        // Không phụ thuộc selectedId để tránh re-create vô ích
+    }, [selectedId == null]);
+
+    // Load list conversations
+    useEffect(() => {
+        loadConversations();
+    }, [loadConversations]);
 
     const selected = useMemo(() => conversations.find((c) => c.id === selectedId) || null, [conversations, selectedId]);
 
-    // load messages khi đổi selectedId
+    // Load messages khi đổi selected
     useEffect(() => {
+        if (!selected || !user?.userName) {
+            setMessages([]);
+            return;
+        }
+
+        const abort = new AbortController();
         (async () => {
-            if (!selected || !user?.userName) {
-                setMessages([]);
-                return;
-            }
             try {
                 setLoading(true);
                 const apiItems: APIMessage[] = await getConversationMessages(selected.id, 1, 50);
+                if (abort.signal.aborted) return;
+
                 const normalized = apiItems.map((m) => normalizeMessage(m, user.userName));
-                // sort tăng dần theo thời gian (nếu backend trả ngược)
+
+                // sort tăng dần theo thời gian
                 normalized.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
                 setMessages(normalized);
             } catch (e) {
-                console.error("load messages error:", e);
-                setMessages([]);
+                if (!abort.signal.aborted) {
+                    console.error("load messages error:", e);
+                    setMessages([]);
+                }
             } finally {
-                setLoading(false);
+                if (!abort.signal.aborted) setLoading(false);
             }
         })();
+
+        return () => abort.abort();
     }, [selected, user]);
 
-    if (loading) {
+    if (loading && conversations.length === 0) {
         return (
             <div>
                 <Loader2 className="mx-auto my-20 animate-spin" />
@@ -74,7 +93,6 @@ export default function MainChat() {
             <Card className="flex min-h-0 flex-col rounded-2xl">
                 <ChatHeader selected={selected} />
                 <Separator />
-                {/* Có thể truyền loading để show skeleton */}
                 <MessageList messages={messages} selected={selected} />
             </Card>
         </div>
