@@ -4,11 +4,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hook/useAuth";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
 
 export default function ConversationItem({ c, active, onClick }: { c: Conversation; active: boolean; onClick: () => void }) {
     const { user } = useAuth();
-    useEffect(() => {});
 
     return (
         <li>

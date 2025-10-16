@@ -1,3 +1,6 @@
+SET GLOBAL time_zone = '+07:00';
+SET time_zone = '+07:00';
+
 -- Users
 CREATE TABLE users (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

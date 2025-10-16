@@ -9,8 +9,6 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hook/useAuth";
 import { Loader2 } from "lucide-react";
-import Composer from "@/components/chat/Composer";
-import { useSocket } from "@/hook/useSocket";
 
 export default function MainChat() {
     const { user } = useAuth();
@@ -18,7 +16,6 @@ export default function MainChat() {
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(false);
-    const { socket } = useSocket();
 
     // load list conversations
     useEffect(() => {
@@ -58,8 +55,7 @@ export default function MainChat() {
                 setLoading(false);
             }
         })();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected, user?.userName]);
+    }, [selected, user]);
 
     if (loading) {
         return (
@@ -78,7 +74,7 @@ export default function MainChat() {
             <Card className="flex min-h-0 flex-col rounded-2xl">
                 <ChatHeader selected={selected} />
                 <Separator />
-                {/* Có thể truyền loading để show skeleton nếu bạn muốn */}
+                {/* Có thể truyền loading để show skeleton */}
                 <MessageList messages={messages} selected={selected} />
             </Card>
         </div>

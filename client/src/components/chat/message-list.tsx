@@ -10,23 +10,8 @@ import { socket } from "@/lib/socket";
 import { useAuth } from "@/hook/useAuth";
 import type { TypingUser } from "@/components/chat/typingIndicator";
 import TypingIndicator from "@/components/chat/typingIndicator";
+import { dayLabel, isSameDay } from "@/components/chat/utils";
 
-function isSameDay(aISO: string, bISO: string) {
-    const a = new Date(aISO),
-        b = new Date(bISO);
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-function dayLabel(iso: string) {
-    const d = new Date(iso);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const day = new Date(iso);
-    day.setHours(0, 0, 0, 0);
-    const diff = Math.floor((today.getTime() - day.getTime()) / 86400000);
-    if (diff === 0) return "Hôm nay";
-    if (diff === 1) return "Hôm qua";
-    return d.toLocaleDateString();
-}
 function DayDivider({ iso }: { iso: string }) {
     return (
         <div className="my-2 flex items-center gap-3">
